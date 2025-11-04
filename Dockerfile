@@ -99,11 +99,11 @@ RUN \
 
 RUN \
     echo "**** install yq, aws cli ****" && \
-    VERSION="v4.12.2"                                                                               && \
+    VERSION="v4.45.4"                                                                               && \
     BINARY="yq_linux_amd64"                                                                         && \
     wget --quiet https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - |\
     tar xz && mv ${BINARY} /usr/bin/yq                                                              && \
-    /opt/conda/bin/pip3 install awscli                                                            && \
+    /opt/conda/bin/pip3 install awscli                                                              && \
     /opt/conda/bin/pip3 install awscli-plugin-endpoint                                              
 
 RUN \
@@ -127,8 +127,18 @@ RUN \
     echo "**** required by cwltool docker pull even if running with --podman ****" && \
     ln -s /usr/bin/podman /usr/bin/docker
 
+# hatch download and installation
+RUN curl -L https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz -o /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz && \
+ tar -xzf /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz -C /tmp/ && \
+ mv /tmp/hatch /usr/bin/hatch && \
+ rm -f /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz && \
+ chmod +x /usr/bin/hatch 
+
+RUN mkdir -p /workspace/ && chown -R jovyan:100 /workspace/
+USER jovyan 
+
+RUN  hatch --version
+
 ENTRYPOINT ["/opt/entrypoint.sh"]
 
 EXPOSE 8888
-
-USER jovyan
