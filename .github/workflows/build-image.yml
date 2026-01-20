@@ -109,7 +109,7 @@ jobs:
 
           TAG=${{ needs.release-meta.outputs.tag }}
           REGISTRY="ghcr.io"
-          IMAGE_PREFIX="eoepca-plus"
+          IMAGE_PREFIX="eoepca"
           IMAGE="pde-code-server"
 
           IMAGE_REF="${REGISTRY}/${IMAGE_PREFIX}/${IMAGE}:${TAG}"
