@@ -1,139 +1,108 @@
 FROM docker.io/library/python:3.12.11-bookworm@sha256:bea386df48d7ee07eed0a1f3e6f9d5c0292c228b8d8ed2ea738b7a57b29c4470
 
-RUN \
-    apt-get update && \
-    apt-get install -y \
-    build-essential \
+ENV DEBIAN_FRONTEND=noninteractive \
+    USER=jovyan \
+    UID=1001 \
+    GID=1001 \
+    HOME=/workspace
+
+# -------------------------------------------------------------------
+# Base system packages (runtime only)
+# -------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
     curl \
-    gcc \
-    vim \
-    tree \
-    file
-
-RUN \
-    echo "**** install node repo ****" && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-      | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] \
-      https://deb.nodesource.com/node_20.x nodistro main" \
-      > /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && \
-    apt-get install -y nodejs
-
-RUN \
-    echo "**** install runtime dependencies ****" && \
-    apt-get install -y \
     git \
-    libatomic1 \
+    nodejs \
+    npm \
     nano \
     net-tools \
     sudo \
-    podman \
     wget \
-    graphviz
+    graphviz \
+    file \
+    tree \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN \
-    echo "**** install code-server ****" && \
-    if [ -z ${CODE_RELEASE+x} ]; then \
-        CODE_RELEASE=$(curl -sX GET https://api.github.com/repos/coder/code-server/releases/latest \
-        | awk '/tag_name/{print $4;exit}' FS='[""]' | sed 's|^v||'); \
-    fi && \
-    mkdir -p /app/code-server && \
-    curl -o \
-        /tmp/code-server.tar.gz -L \
-        "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" && \
-    tar xf /tmp/code-server.tar.gz -C \
-        /app/code-server --strip-components=1 && \
-    echo "**** patch 4.0.2 ****" && \
-    if [ "${CODE_RELEASE}" = "4.0.2" ] && [ "$(uname -m)" !=  "x86_64" ]; then \
-        cd /app/code-server && \
-        npm i --production @node-rs/argon2; \
-    fi && \
-    echo "**** clean up ****" && \
-    apt-get purge --auto-remove -y \
-        build-essential && \
-    apt-get clean && \
-    rm -rf \
-        /config/* \
-        /tmp/* \
-        /var/lib/apt/lists/* \
-        /var/tmp/* \
-        /etc/apt/sources.list.d/nodesource.list
+# -------------------------------------------------------------------
+# Create user
+# -------------------------------------------------------------------
+RUN groupadd -g ${GID} ${USER} && \
+    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
 
-ENV USER=jovyan \
-    UID=1001 \
-    GID=100 \
-    HOME=/workspace \
-    PATH=/opt/conda/bin:/app/code-server/bin/:$PATH:/app/code-server/
+# -------------------------------------------------------------------
+# code-server
+# -------------------------------------------------------------------
+ARG CODE_RELEASE=4.108.1
+RUN mkdir -p /opt/code-server && \
+    curl -fsSL \
+      "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /opt/code-server
 
-RUN \
-    echo "**** install aws cli ****" && \   
-    pip install awscli  && \
-    pip install awscli-plugin-endpoint                                              
+ENV PATH="/opt/code-server/bin:${PATH}"
 
-RUN \
-    echo "**** install jupyter-hub native proxy ****" && \
-    pip install jhsingle-native-proxy>=0.0.9 && \
-    echo "**** install bash kernel ****" && \
-    pip install bash_kernel && \
+# -------------------------------------------------------------------
+# Kubernetes / Dev tooling (pinned, glibc-safe)
+# -------------------------------------------------------------------
+ARG KUBECTL_VERSION=v1.29.3
+RUN curl -fsSL \
+    https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl \
+    -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl
+
+ARG TASK_VERSION=v3.41.0
+RUN curl -fsSL \
+    https://github.com/go-task/task/releases/download/${TASK_VERSION}/task_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin task && chmod +x /usr/local/bin/task
+
+ARG SKAFFOLD_VERSION=2.17.1
+RUN curl -fsSL \
+    https://storage.googleapis.com/skaffold/releases/v${SKAFFOLD_VERSION}/skaffold-linux-amd64 \
+    -o /usr/local/bin/skaffold && chmod +x /usr/local/bin/skaffold
+
+ARG ORAS_VERSION=1.3.0
+RUN curl -fsSL \
+    https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin oras && chmod +x /usr/local/bin/oras
+
+# -------------------------------------------------------------------
+# yq / jq (single source of truth)
+# -------------------------------------------------------------------
+ARG YQ_VERSION=v4.45.1
+RUN curl -fsSL \
+    https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 \
+    -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+
+ARG JQ_VERSION=jq-1.7.1
+RUN curl -fsSL \
+    https://github.com/jqlang/jq/releases/download/${JQ_VERSION}/jq-linux-amd64 \
+    -o /usr/local/bin/jq && chmod +x /usr/local/bin/jq
+
+# -------------------------------------------------------------------
+# Python tooling
+# -------------------------------------------------------------------
+RUN pip install --no-cache-dir \
+    awscli \
+    awscli-plugin-endpoint \
+    jhsingle-native-proxy>=0.0.9 \
+    bash_kernel \
+    tomlq \
+    uv && \
     python -m bash_kernel.install
 
-RUN \
-    echo "**** adds user jovyan ****" && \
-    useradd -m -s /bin/bash -N -u $UID $USER 
+# hatch (binary)
+RUN curl -fsSL \
+    https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz \
+    | tar -xz -C /usr/local/bin hatch && chmod +x /usr/local/bin/hatch
 
+# -------------------------------------------------------------------
+# Entrypoint
+# -------------------------------------------------------------------
 COPY entrypoint.sh /opt/entrypoint.sh
-
 RUN chmod +x /opt/entrypoint.sh
 
-ENTRYPOINT ["/opt/entrypoint.sh"]
+USER ${USER}
+WORKDIR /workspace
 
 EXPOSE 8888
-
-RUN echo "**** install kubectl ****" && \
-    curl -s -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
-    chmod +x kubectl && \
-    mkdir -p /workspace/.venv/bin && \
-    mv ./kubectl /usr/local/bin/kubectl
-
-
-RUN curl -s -L https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz | tar -xzvf - -C /usr/local/bin/ && \
-    chmod +x /usr/local/bin/hatch
-
-RUN curl -s -L https://github.com/go-task/task/releases/download/v3.41.0/task_linux_amd64.tar.gz | tar -xzvf - -C /usr/local/bin/ && \
-    chmod +x /usr/local/bin/task
-
-RUN curl -s -L https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64 > /usr/local/bin/skaffold && \
-    chmod +x /usr/local/bin/skaffold
-
-RUN pip3 install tomlq && tomlq --version
-
-RUN rm -f /usr/bin/yq && \
-    rm -f /usr/local/bin/yq && \
-    curl -s -LO https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64.tar.gz && \
-    tar -xvf yq_linux_amd64.tar.gz && \
-    mv yq_linux_amd64 /usr/local/bin/yq && \
-    cp -v /usr/local/bin/yq /usr/bin/yq && \
-    chmod +x /usr/bin/yq /usr/local/bin/yq
-    
-RUN curl -s -L https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64 > /usr/bin/jq && \
-    chmod +x /usr/bin/jq
-
-RUN pip install --upgrade uv
-
-# Download the hatch tar.gz file from GitHub
-RUN curl -L https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz -o /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz
-
-# Extract the hatch binary
-RUN tar -xzf /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin/
-
-# oras
-RUN VERSION="1.3.0" && \
-    curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz" && \
-    mkdir -p oras-install/ && \
-    tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/ && \
-    sudo mv oras-install/oras /usr/local/bin/ && \
-    rm -rf oras_${VERSION}_*.tar.gz oras-install/
-
-USER jovyan
+ENTRYPOINT ["/opt/entrypoint.sh"]
