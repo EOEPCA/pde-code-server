@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     graphviz \
     file \
     tree \
+    && apt-get remove -y yq \
  && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------------------------------------------
@@ -73,10 +74,6 @@ RUN curl -fsSL \
     https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 \
     -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
-ARG JQ_VERSION=jq-1.7.1
-RUN curl -fsSL \
-    https://github.com/jqlang/jq/releases/download/${JQ_VERSION}/jq-linux-amd64 \
-    -o /usr/local/bin/jq && chmod +x /usr/local/bin/jq
 
 # -------------------------------------------------------------------
 # Python tooling
@@ -90,9 +87,16 @@ RUN pip install --no-cache-dir \
     uv && \
     python -m bash_kernel.install
 
-# hatch (binary)
+
+ARG JQ_VERSION=jq-1.8.1
 RUN curl -fsSL \
-    https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz \
+    https://github.com/jqlang/jq/releases/download/${JQ_VERSION}/jq-linux-amd64 \
+    -o /usr/local/bin/jq && chmod +x /usr/local/bin/jq
+
+# hatch (binary)
+ARG HATCH_VERSION=1.16.2
+RUN curl -fsSL \
+    https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin hatch && chmod +x /usr/local/bin/hatch
 
 # -------------------------------------------------------------------
