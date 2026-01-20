@@ -1,46 +1,37 @@
-FROM docker.io/ubuntu:latest
-
-ENV DEBIAN_FRONTEND=noninteractive
+FROM docker.io/library/python:3.12.11-bookworm@sha256:bea386df48d7ee07eed0a1f3e6f9d5c0292c228b8d8ed2ea738b7a57b29c4470
 
 RUN \
     apt-get update && \
-    ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
-    echo "Etc/UTC" > /etc/timezone && \
     apt-get install -y \
     build-essential \
     curl \
     gcc \
     vim \
     tree \
-    file \
-    tzdata && \
-    dpkg-reconfigure -f noninteractive tzdata
-
-    
+    file
 
 RUN \
     echo "**** install node repo ****" && \
     curl -s https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - && \
-    echo 'deb https://deb.nodesource.com/node_14.x jammy main' \
+    echo 'deb https://deb.nodesource.com/node_14.x bookworm main' \
         > /etc/apt/sources.list.d/nodesource.list && \
     echo "**** install build dependencies ****" && \
     apt-get update && \
     apt-get install -y \
-    nodejs
+    nodejs && \
+    apt remove yq jq -y
 
 RUN \
     echo "**** install runtime dependencies ****" && \
     apt-get install -y \
     git \
-    jq \
     libatomic1 \
     nano \
     net-tools \
     sudo \
     podman \
     wget \
-    python3 \
-    python3-pip 
+    graphviz
 
 RUN \
     echo "**** install code-server ****" && \
@@ -61,8 +52,7 @@ RUN \
     fi && \
     echo "**** clean up ****" && \
     apt-get purge --auto-remove -y \
-        build-essential \
-        nodejs && \
+        build-essential && \
     apt-get clean && \
     rm -rf \
         /config/* \
@@ -77,41 +67,17 @@ ENV USER=jovyan \
     HOME=/workspace \
     PATH=/opt/conda/bin:/app/code-server/bin/:$PATH:/app/code-server/
 
-
 RUN \
-    echo "**** install conda ****" && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-py310_23.3.1-0-Linux-x86_64.sh -O miniconda.sh -q && \
-    sh miniconda.sh -b -p /opt/conda && \
-    export PATH="/opt/conda/bin:$PATH" && \
-    conda install -n base -c conda-forge mamba && \
-    conda config --system --append channels conda-forge && \
-    conda config --system --append channels terradue && \
-    conda config --system --append channels eoepca && \
-    conda config --system --append channels r && \
-    conda config --system --set auto_update_conda false && \
-    conda config --system --set show_channel_urls true && \
-    conda config --system --set channel_priority "flexible"
-
-
-RUN \
-    mamba install -n base cwltool cwl-wrapper==0.12.2 nodejs && \
-    mamba clean -a
-
-RUN \
-    echo "**** install yq, aws cli ****" && \
-    VERSION="v4.45.4"                                                                               && \
-    BINARY="yq_linux_amd64"                                                                         && \
-    wget --quiet https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - |\
-    tar xz && mv ${BINARY} /usr/bin/yq                                                              && \
-    /opt/conda/bin/pip3 install awscli                                                              && \
-    /opt/conda/bin/pip3 install awscli-plugin-endpoint                                              
+    echo "**** install aws cli ****" && \   
+    pip install awscli  && \
+    pip install awscli-plugin-endpoint                                              
 
 RUN \
     echo "**** install jupyter-hub native proxy ****" && \
-    /opt/conda/bin/pip3 install jhsingle-native-proxy>=0.0.9 && \
+    pip install jhsingle-native-proxy>=0.0.9 && \
     echo "**** install bash kernel ****" && \
-    /opt/conda/bin/pip3 install bash_kernel && \
-    /opt/conda/bin/python3 -m bash_kernel.install
+    pip install bash_kernel && \
+    python -m bash_kernel.install
 
 RUN \
     echo "**** adds user jovyan ****" && \
@@ -121,24 +87,53 @@ COPY entrypoint.sh /opt/entrypoint.sh
 
 RUN chmod +x /opt/entrypoint.sh
 
-RUN chown -R jovyan:100 /opt/conda
-
-RUN \
-    echo "**** required by cwltool docker pull even if running with --podman ****" && \
-    ln -s /usr/bin/podman /usr/bin/docker
-
-# hatch download and installation
-RUN curl -L https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz -o /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz && \
- tar -xzf /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz -C /tmp/ && \
- mv /tmp/hatch /usr/bin/hatch && \
- rm -f /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz && \
- chmod +x /usr/bin/hatch 
-
-RUN mkdir -p /workspace/ && chown -R jovyan:100 /workspace/
-USER jovyan 
-
-RUN  hatch --version
-
 ENTRYPOINT ["/opt/entrypoint.sh"]
 
 EXPOSE 8888
+
+RUN echo "**** install kubectl ****" && \
+    curl -s -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+    chmod +x kubectl && \
+    mkdir -p /workspace/.venv/bin && \
+    mv ./kubectl /usr/local/bin/kubectl
+
+
+RUN curl -s -L https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz | tar -xzvf - -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/hatch
+
+RUN curl -s -L https://github.com/go-task/task/releases/download/v3.41.0/task_linux_amd64.tar.gz | tar -xzvf - -C /usr/local/bin/ && \
+    chmod +x /usr/local/bin/task
+
+RUN curl -s -L https://storage.googleapis.com/skaffold/releases/latest/skaffold-linux-amd64 > /usr/local/bin/skaffold && \
+    chmod +x /usr/local/bin/skaffold
+
+RUN pip3 install tomlq && tomlq --version
+
+RUN rm -f /usr/bin/yq && \
+    rm -f /usr/local/bin/yq && \
+    curl -s -LO https://github.com/mikefarah/yq/releases/download/v4.45.1/yq_linux_amd64.tar.gz && \
+    tar -xvf yq_linux_amd64.tar.gz && \
+    mv yq_linux_amd64 /usr/local/bin/yq && \
+    cp -v /usr/local/bin/yq /usr/bin/yq && \
+    chmod +x /usr/bin/yq /usr/local/bin/yq
+    
+RUN curl -s -L https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64 > /usr/bin/jq && \
+    chmod +x /usr/bin/jq
+
+RUN pip install --upgrade uv
+
+# Download the hatch tar.gz file from GitHub
+RUN curl -L https://github.com/pypa/hatch/releases/latest/download/hatch-x86_64-unknown-linux-gnu.tar.gz -o /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz
+
+# Extract the hatch binary
+RUN tar -xzf /tmp/hatch-x86_64-unknown-linux-gnu.tar.gz -C /usr/local/bin/
+
+# oras
+RUN VERSION="1.3.0" && \
+    curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz" && \
+    mkdir -p oras-install/ && \
+    tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/ && \
+    sudo mv oras-install/oras /usr/local/bin/ && \
+    rm -rf oras_${VERSION}_*.tar.gz oras-install/
+
+USER jovyan
