@@ -68,7 +68,7 @@ jobs:
           DOCKER_CONFIG: /github/home/.docker
         with:
           args: >
-            --context . \
+            --context .
             --dockerfile Dockerfile
             --no-push
             --tar-path image.tar
