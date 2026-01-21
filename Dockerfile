@@ -79,6 +79,7 @@ RUN pip install --no-cache-dir \
     tomlq \
     uv \
     cwltool \
+    cwltest \
     "calrissian==${CALRISSIAN_VERSION}" && \
     python -m bash_kernel.install
 
