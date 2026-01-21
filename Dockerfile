@@ -66,6 +66,22 @@ RUN curl -fsSL \
     https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz \
     | tar -xz -C /usr/local/bin oras && chmod +x /usr/local/bin/oras
 
+
+# -------------------------------------------------------------------
+# Python tooling
+# -------------------------------------------------------------------
+ARG CALRISSIAN_VERSION=0.18.1
+RUN pip install --no-cache-dir \
+    awscli \
+    awscli-plugin-endpoint \
+    jhsingle-native-proxy>=0.0.9 \
+    bash_kernel \
+    tomlq \
+    uv \
+    cwltool \
+    "calrissian==${CALRISSIAN_VERSION}" && \
+    python -m bash_kernel.install
+
 # -------------------------------------------------------------------
 # yq / jq (single source of truth)
 # -------------------------------------------------------------------
@@ -73,19 +89,6 @@ ARG YQ_VERSION=v4.45.1
 RUN curl -fsSL \
     https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 \
     -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
-
-
-# -------------------------------------------------------------------
-# Python tooling
-# -------------------------------------------------------------------
-RUN pip install --no-cache-dir \
-    awscli \
-    awscli-plugin-endpoint \
-    jhsingle-native-proxy>=0.0.9 \
-    bash_kernel \
-    tomlq \
-    uv && \
-    python -m bash_kernel.install
 
 
 ARG JQ_VERSION=jq-1.8.1

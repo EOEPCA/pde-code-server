@@ -24,6 +24,21 @@ jobs:
             TAG="latest"
           elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/v}"
+
+            # --------------------------------------------------
+            # Validate against release.yaml
+            # --------------------------------------------------
+            RELEASE_VERSION=$(yq -r '.image_version' release.yaml)
+
+            if [[ -z "${RELEASE_VERSION}" || "${RELEASE_VERSION}" == "null" ]]; then
+              echo "image_version not found in release.yaml"
+              exit 1
+            fi
+
+            if [[ "${TAG}" != "${RELEASE_VERSION}" ]]; then
+              echo "Git tag v${TAG} does not match release.yaml version ${RELEASE_VERSION}"
+              exit 1
+            fi
           else
             echo "Unsupported ref ${GITHUB_REF}"
             exit 1
@@ -108,9 +123,9 @@ jobs:
           set -euo pipefail
 
           TAG=${{ needs.release-meta.outputs.tag }}
-          REGISTRY="ghcr.io"
-          IMAGE_PREFIX="eoepca"
-          IMAGE="pde-code-server"
+          REGISTRY=$(yq -r '.image_registry' release.yaml)
+          IMAGE_PREFIX=$(yq -r '.image_prefix' release.yaml)
+          IMAGE=$(yq -r '.image_name' release.yaml)
 
           IMAGE_REF="${REGISTRY}/${IMAGE_PREFIX}/${IMAGE}:${TAG}"
 
