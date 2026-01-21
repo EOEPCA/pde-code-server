@@ -1,134 +1,115 @@
-FROM docker.io/ubuntu:latest
+FROM docker.io/library/python:3.12.11-bookworm@sha256:bea386df48d7ee07eed0a1f3e6f9d5c0292c228b8d8ed2ea738b7a57b29c4470
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    USER=jovyan \
+    UID=1001 \
+    GID=1001 \
+    HOME=/workspace
 
-RUN \
-    apt-get update && \
-    ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
-    echo "Etc/UTC" > /etc/timezone && \
-    apt-get install -y \
-    build-essential \
+# -------------------------------------------------------------------
+# Base system packages (runtime only)
+# -------------------------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
     curl \
-    gcc \
-    vim \
-    tree \
-    file \
-    tzdata && \
-    dpkg-reconfigure -f noninteractive tzdata
-
-    
-
-RUN \
-    echo "**** install node repo ****" && \
-    curl -s https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - && \
-    echo 'deb https://deb.nodesource.com/node_14.x jammy main' \
-        > /etc/apt/sources.list.d/nodesource.list && \
-    echo "**** install build dependencies ****" && \
-    apt-get update && \
-    apt-get install -y \
-    nodejs
-
-RUN \
-    echo "**** install runtime dependencies ****" && \
-    apt-get install -y \
     git \
-    jq \
-    libatomic1 \
+    nodejs \
+    npm \
     nano \
     net-tools \
     sudo \
-    podman \
     wget \
-    python3 \
-    python3-pip 
+    graphviz \
+    file \
+    tree \
+    && apt-get remove -y yq \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN \
-    echo "**** install code-server ****" && \
-    if [ -z ${CODE_RELEASE+x} ]; then \
-        CODE_RELEASE=$(curl -sX GET https://api.github.com/repos/coder/code-server/releases/latest \
-        | awk '/tag_name/{print $4;exit}' FS='[""]' | sed 's|^v||'); \
-    fi && \
-    mkdir -p /app/code-server && \
-    curl -o \
-        /tmp/code-server.tar.gz -L \
-        "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" && \
-    tar xf /tmp/code-server.tar.gz -C \
-        /app/code-server --strip-components=1 && \
-    echo "**** patch 4.0.2 ****" && \
-    if [ "${CODE_RELEASE}" = "4.0.2" ] && [ "$(uname -m)" !=  "x86_64" ]; then \
-        cd /app/code-server && \
-        npm i --production @node-rs/argon2; \
-    fi && \
-    echo "**** clean up ****" && \
-    apt-get purge --auto-remove -y \
-        build-essential \
-        nodejs && \
-    apt-get clean && \
-    rm -rf \
-        /config/* \
-        /tmp/* \
-        /var/lib/apt/lists/* \
-        /var/tmp/* \
-        /etc/apt/sources.list.d/nodesource.list
+# -------------------------------------------------------------------
+# Create user
+# -------------------------------------------------------------------
+RUN groupadd -g ${GID} ${USER} && \
+    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
 
-ENV USER=jovyan \
-    UID=1001 \
-    GID=100 \
-    HOME=/workspace \
-    PATH=/opt/conda/bin:/app/code-server/bin/:$PATH:/app/code-server/
+# -------------------------------------------------------------------
+# code-server
+# -------------------------------------------------------------------
+ARG CODE_RELEASE=4.108.1
+RUN mkdir -p /opt/code-server && \
+    curl -fsSL \
+      "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" \
+      | tar -xz --strip-components=1 -C /opt/code-server
 
+ENV PATH="/opt/code-server/bin:${PATH}"
 
-RUN \
-    echo "**** install conda ****" && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-py310_23.3.1-0-Linux-x86_64.sh -O miniconda.sh -q && \
-    sh miniconda.sh -b -p /opt/conda && \
-    export PATH="/opt/conda/bin:$PATH" && \
-    conda install -n base -c conda-forge mamba && \
-    conda config --system --append channels conda-forge && \
-    conda config --system --append channels terradue && \
-    conda config --system --append channels eoepca && \
-    conda config --system --append channels r && \
-    conda config --system --set auto_update_conda false && \
-    conda config --system --set show_channel_urls true && \
-    conda config --system --set channel_priority "flexible"
+# -------------------------------------------------------------------
+# Kubernetes / Dev tooling (pinned, glibc-safe)
+# -------------------------------------------------------------------
+ARG KUBECTL_VERSION=v1.29.3
+RUN curl -fsSL \
+    https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl \
+    -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl
+
+ARG TASK_VERSION=v3.41.0
+RUN curl -fsSL \
+    https://github.com/go-task/task/releases/download/${TASK_VERSION}/task_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin task && chmod +x /usr/local/bin/task
+
+ARG SKAFFOLD_VERSION=2.17.1
+RUN curl -fsSL \
+    https://storage.googleapis.com/skaffold/releases/v${SKAFFOLD_VERSION}/skaffold-linux-amd64 \
+    -o /usr/local/bin/skaffold && chmod +x /usr/local/bin/skaffold
+
+ARG ORAS_VERSION=1.3.0
+RUN curl -fsSL \
+    https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz \
+    | tar -xz -C /usr/local/bin oras && chmod +x /usr/local/bin/oras
 
 
-RUN \
-    mamba install -n base cwltool cwl-wrapper==0.12.2 nodejs && \
-    mamba clean -a
+# -------------------------------------------------------------------
+# Python tooling
+# -------------------------------------------------------------------
+ARG CALRISSIAN_VERSION=0.18.1
+RUN pip install --no-cache-dir \
+    awscli \
+    awscli-plugin-endpoint \
+    jhsingle-native-proxy>=0.0.9 \
+    bash_kernel \
+    tomlq \
+    uv \
+    cwltool \
+    "calrissian==${CALRISSIAN_VERSION}" && \
+    python -m bash_kernel.install
 
-RUN \
-    echo "**** install yq, aws cli ****" && \
-    VERSION="v4.12.2"                                                                               && \
-    BINARY="yq_linux_amd64"                                                                         && \
-    wget --quiet https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY}.tar.gz -O - |\
-    tar xz && mv ${BINARY} /usr/bin/yq                                                              && \
-    /opt/conda/bin/pip3 install awscli                                                            && \
-    /opt/conda/bin/pip3 install awscli-plugin-endpoint                                              
+# -------------------------------------------------------------------
+# yq / jq (single source of truth)
+# -------------------------------------------------------------------
+ARG YQ_VERSION=v4.45.1
+RUN curl -fsSL \
+    https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 \
+    -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
-RUN \
-    echo "**** install jupyter-hub native proxy ****" && \
-    /opt/conda/bin/pip3 install jhsingle-native-proxy>=0.0.9 && \
-    echo "**** install bash kernel ****" && \
-    /opt/conda/bin/pip3 install bash_kernel && \
-    /opt/conda/bin/python3 -m bash_kernel.install
 
-RUN \
-    echo "**** adds user jovyan ****" && \
-    useradd -m -s /bin/bash -N -u $UID $USER 
+ARG JQ_VERSION=jq-1.8.1
+RUN curl -fsSL \
+    https://github.com/jqlang/jq/releases/download/${JQ_VERSION}/jq-linux-amd64 \
+    -o /usr/local/bin/jq && chmod +x /usr/local/bin/jq
 
+# hatch (binary)
+ARG HATCH_VERSION=1.16.2
+RUN curl -fsSL \
+    https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-x86_64-unknown-linux-gnu.tar.gz \
+    | tar -xz -C /usr/local/bin hatch && chmod +x /usr/local/bin/hatch
+
+# -------------------------------------------------------------------
+# Entrypoint
+# -------------------------------------------------------------------
 COPY entrypoint.sh /opt/entrypoint.sh
-
 RUN chmod +x /opt/entrypoint.sh
 
-RUN chown -R jovyan:100 /opt/conda
-
-RUN \
-    echo "**** required by cwltool docker pull even if running with --podman ****" && \
-    ln -s /usr/bin/podman /usr/bin/docker
-
-ENTRYPOINT ["/opt/entrypoint.sh"]
+USER ${USER}
+WORKDIR /workspace
 
 EXPOSE 8888
-
-USER jovyan
+ENTRYPOINT ["/opt/entrypoint.sh"]

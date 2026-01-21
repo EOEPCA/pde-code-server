@@ -1,0 +1,4 @@
+image_name: pde-code-server
+image_prefix: eoepca
+image_version: 1.1.0
+image_registry: ghcr.io
