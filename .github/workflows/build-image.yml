@@ -15,6 +15,7 @@ jobs:
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
     steps:
+      - uses: actions/checkout@v4
       - id: meta
         run: |
           set -euo pipefail
