@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     graphviz \
     file \
     tree \
+    podman \
     && apt-get remove -y yq \
  && rm -rf /var/lib/apt/lists/*
 
