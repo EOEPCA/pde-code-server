@@ -105,6 +105,14 @@ RUN curl -fsSL \
     https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin hatch && chmod +x /usr/local/bin/hatch
 
+# trivy 
+ARG TRIVY_VERSION=0.68.2
+RUN curl -fsSL \
+    https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb \
+    -o /tmp/trivy.deb && \
+    dpkg -i /tmp/trivy.deb && \
+    rm /tmp/trivy.deb
+    
 # -------------------------------------------------------------------
 # Entrypoint
 # -------------------------------------------------------------------
