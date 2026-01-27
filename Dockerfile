@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     file \
     tree \
     podman \
+    skopeo \
     && apt-get remove -y yq \
  && rm -rf /var/lib/apt/lists/*
 
