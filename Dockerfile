@@ -31,8 +31,8 @@ RUN apt-get update && apt-get install -y \
 # Create user
 # -------------------------------------------------------------------
 #RUN groupadd -g ${GID} ${USER} && \
-#    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
-RUN echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
+RUN useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
 
 # -------------------------------------------------------------------
 # code-server
