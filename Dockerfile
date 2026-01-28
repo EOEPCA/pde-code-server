@@ -2,8 +2,8 @@ FROM docker.io/library/python:3.12.11-bookworm@sha256:bea386df48d7ee07eed0a1f3e6
 
 ENV DEBIAN_FRONTEND=noninteractive \
     USER=jovyan \
-    UID=1001 \
-    GID=1001 \
+    UID=1000 \
+    GID=100 \
     HOME=/workspace
 
 # -------------------------------------------------------------------
@@ -30,9 +30,9 @@ RUN apt-get update && apt-get install -y \
 # -------------------------------------------------------------------
 # Create user
 # -------------------------------------------------------------------
-RUN groupadd -g ${GID} ${USER} && \
-    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
-    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
+#RUN groupadd -g ${GID} ${USER} && \
+#    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+RUN echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
 
 # -------------------------------------------------------------------
 # code-server
@@ -112,7 +112,7 @@ RUN curl -fsSL \
     -o /tmp/trivy.deb && \
     dpkg -i /tmp/trivy.deb && \
     rm /tmp/trivy.deb
-    
+
 # -------------------------------------------------------------------
 # Entrypoint
 # -------------------------------------------------------------------
