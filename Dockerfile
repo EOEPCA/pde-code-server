@@ -2,8 +2,8 @@ FROM docker.io/library/python:3.12.11-bookworm@sha256:bea386df48d7ee07eed0a1f3e6
 
 ENV DEBIAN_FRONTEND=noninteractive \
     USER=jovyan \
-    UID=1001 \
-    GID=1001 \
+    UID=1000 \
+    GID=100 \
     HOME=/workspace
 
 # -------------------------------------------------------------------
@@ -22,14 +22,16 @@ RUN apt-get update && apt-get install -y \
     graphviz \
     file \
     tree \
+    podman \
+    skopeo \
     && apt-get remove -y yq \
  && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------------------------------------------
 # Create user
 # -------------------------------------------------------------------
-RUN groupadd -g ${GID} ${USER} && \
-    useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
+#RUN groupadd -g ${GID} ${USER} && \
+RUN useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
     echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
 
 # -------------------------------------------------------------------
@@ -102,6 +104,14 @@ ARG HATCH_VERSION=1.16.2
 RUN curl -fsSL \
     https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin hatch && chmod +x /usr/local/bin/hatch
+
+# trivy 
+ARG TRIVY_VERSION=0.68.2
+RUN curl -fsSL \
+    https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb \
+    -o /tmp/trivy.deb && \
+    dpkg -i /tmp/trivy.deb && \
+    rm /tmp/trivy.deb
 
 # -------------------------------------------------------------------
 # Entrypoint
