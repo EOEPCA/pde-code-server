@@ -24,8 +24,7 @@ RUN apt-get update && apt-get install -y \
     tree \
     podman \
     skopeo \
-    && apt-get remove -y yq \
- && rm -rf /var/lib/apt/lists/*
+    && apt-get remove -y yq
 
 # -------------------------------------------------------------------
 # Create user
@@ -113,6 +112,35 @@ RUN curl -fsSL \
     dpkg -i /tmp/trivy.deb && \
     rm /tmp/trivy.deb
 
+#gdal
+ARG GDAL_VER=3.12.1
+# fetch, build, install
+RUN apt-get install --no-install-recommends -qy \
+    cmake ninja-build libproj-dev proj-data proj-binset \
+    set -eux; \
+    cd /tmp; \
+    curl -fsSL -o gdal-${GDAL_VER}.tar.xz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.xz \
+      || curl -fsSL -o gdal-${GDAL_VER}.tar.gz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.gz; \
+    if [ -f gdal-${GDAL_VER}.tar.xz ]; then \
+        tar -xJf gdal-${GDAL_VER}.tar.xz; \
+    else \
+        tar -xzf gdal-${GDAL_VER}.tar.gz; \
+    fi; \
+    cd gdal-${GDAL_VER}; \
+    mkdir build && cd build; \
+    cmake -G Ninja ../gdal-${GDAL_VER} \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX=/usr/local; \
+    cmake --build . -- -j"$(nproc)"; \
+    cmake --install .; \
+    ldconfig; \
+    gdal-config --version; \
+    cd / && rm -rf /tmp/gdal-${GDAL_VER}* && \
+    rm -rf /var/lib/apt/lists/*
+
+
+#####
+
 # -------------------------------------------------------------------
 # Entrypoint
 # -------------------------------------------------------------------
@@ -120,6 +148,12 @@ COPY entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
 USER ${USER}
+
+ENV GDAL_CONFIG=/usr/local/bin/gdal-config
+ENV GDAL_DATA=/usr/local/share/gdal
+ENV GDAL_DRIVER_PATH=/usr/local/lib/gdalplugins
+ENV GDAL_OVERWRITE=YES
+
 WORKDIR /workspace
 
 EXPOSE 8888
