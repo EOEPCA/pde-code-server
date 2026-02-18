@@ -115,9 +115,9 @@ RUN curl -fsSL \
 #gdal
 ARG GDAL_VER=3.12.1
 # fetch, build, install
-RUN apt-get install --no-install-recommends -qy \
-    cmake ninja-build libproj-dev proj-data proj-binset \
-    set -eux; \
+RUN apt-get install -qy \
+    cmake ninja-build libproj-dev proj-data proj-bin; \
+    set -e; \
     cd /tmp; \
     curl -fsSL -o gdal-${GDAL_VER}.tar.xz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.xz \
       || curl -fsSL -o gdal-${GDAL_VER}.tar.gz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.gz; \
@@ -128,16 +128,15 @@ RUN apt-get install --no-install-recommends -qy \
     fi; \
     cd gdal-${GDAL_VER}; \
     mkdir build && cd build; \
-    cmake -G Ninja ../gdal-${GDAL_VER} \
+    cmake -G Ninja ../ \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX=/usr/local; \
     cmake --build . -- -j"$(nproc)"; \
     cmake --install .; \
     ldconfig; \
-    gdal-config --version; \
-    cd / && rm -rf /tmp/gdal-${GDAL_VER}* && \
-    rm -rf /var/lib/apt/lists/*
-
+    rm -rf /tmp/gdal-${GDAL_VER}*; \
+    rm -rf /var/lib/apt/lists/*; \
+    gdal-config --version
 
 #####
 
