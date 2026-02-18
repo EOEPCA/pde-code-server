@@ -24,7 +24,8 @@ RUN apt-get update && apt-get install -y \
     tree \
     podman \
     skopeo \
-    && apt-get remove -y yq
+    && apt-get remove -y yq && \
+    rm -rf /var/lib/apt/lists/*
 
 # -------------------------------------------------------------------
 # Create user
@@ -115,7 +116,7 @@ RUN curl -fsSL \
 #gdal
 ARG GDAL_VER=3.12.1
 # fetch, build, install
-RUN apt-get install -qy \
+RUN apt-get update && apt-get install -qy \
     cmake ninja-build libproj-dev proj-data proj-bin; \
     set -e; \
     cd /tmp; \
