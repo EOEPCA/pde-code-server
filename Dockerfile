@@ -1,10 +1,12 @@
-FROM docker.io/library/python:3.12.11-bookworm@sha256:bea386df48d7ee07eed0a1f3e6f9d5c0292c228b8d8ed2ea738b7a57b29c4470
+FROM quay.io/jupyter/base-notebook:python-3.12
 
 ENV DEBIAN_FRONTEND=noninteractive \
     USER=jovyan \
     UID=1000 \
     GID=100 \
     HOME=/workspace
+
+USER root
 
 # -------------------------------------------------------------------
 # Base system packages (runtime only)
@@ -24,15 +26,8 @@ RUN apt-get update && apt-get install -y \
     tree \
     podman \
     skopeo \
-    && apt-get remove -y yq && \
-    rm -rf /var/lib/apt/lists/*
-
-# -------------------------------------------------------------------
-# Create user
-# -------------------------------------------------------------------
-#RUN groupadd -g ${GID} ${USER} && \
-RUN useradd -m -u ${UID} -g ${GID} -s /bin/bash ${USER} && \
-    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
+    nextcloud-desktop-cmd=3.11.0-1.1build4 \
+    && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------------------------------------------
 # code-server
@@ -46,7 +41,7 @@ RUN mkdir -p /opt/code-server && \
 ENV PATH="/opt/code-server/bin:${PATH}"
 
 # -------------------------------------------------------------------
-# Kubernetes / Dev tooling (pinned, glibc-safe)
+# Kubernetes / Dev tooling (pinned)
 # -------------------------------------------------------------------
 ARG KUBECTL_VERSION=v1.29.3
 RUN curl -fsSL \
@@ -68,7 +63,6 @@ RUN curl -fsSL \
     https://github.com/oras-project/oras/releases/download/v${ORAS_VERSION}/oras_${ORAS_VERSION}_linux_amd64.tar.gz \
     | tar -xz -C /usr/local/bin oras && chmod +x /usr/local/bin/oras
 
-
 # -------------------------------------------------------------------
 # Python tooling
 # -------------------------------------------------------------------
@@ -76,7 +70,7 @@ ARG CALRISSIAN_VERSION=0.18.1
 RUN pip install --no-cache-dir \
     awscli \
     awscli-plugin-endpoint \
-    jhsingle-native-proxy>=0.0.9 \
+    "jhsingle-native-proxy>=0.0.9" \
     bash_kernel \
     tomlq \
     uv \
@@ -86,64 +80,69 @@ RUN pip install --no-cache-dir \
     python -m bash_kernel.install
 
 # -------------------------------------------------------------------
-# yq / jq (single source of truth)
+# yq / jq
 # -------------------------------------------------------------------
 ARG YQ_VERSION=v4.45.1
 RUN curl -fsSL \
     https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64 \
     -o /usr/local/bin/yq && chmod +x /usr/local/bin/yq
 
-
 ARG JQ_VERSION=jq-1.8.1
 RUN curl -fsSL \
     https://github.com/jqlang/jq/releases/download/${JQ_VERSION}/jq-linux-amd64 \
     -o /usr/local/bin/jq && chmod +x /usr/local/bin/jq
 
-# hatch (binary)
+# -------------------------------------------------------------------
+# hatch
+# -------------------------------------------------------------------
 ARG HATCH_VERSION=1.16.2
 RUN curl -fsSL \
     https://github.com/pypa/hatch/releases/download/hatch-v${HATCH_VERSION}/hatch-x86_64-unknown-linux-gnu.tar.gz \
     | tar -xz -C /usr/local/bin hatch && chmod +x /usr/local/bin/hatch
 
-# trivy 
-ARG TRIVY_VERSION=0.68.2
+# -------------------------------------------------------------------
+# trivy
+# -------------------------------------------------------------------
+ARG TRIVY_VERSION=0.69.3
 RUN curl -fsSL \
     https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb \
     -o /tmp/trivy.deb && \
     dpkg -i /tmp/trivy.deb && \
     rm /tmp/trivy.deb
 
-#gdal
+# -------------------------------------------------------------------
+# GDAL
+# -------------------------------------------------------------------
 ARG GDAL_VER=3.12.1
-# fetch, build, install
-RUN apt-get update && apt-get install -qy \
-    cmake ninja-build libproj-dev proj-data proj-bin; \
-    set -e; \
-    cd /tmp; \
+RUN apt-get update && apt-get install -y \
+    cmake ninja-build libproj-dev proj-data proj-bin && \
+    rm -rf /var/lib/apt/lists/* && \
+    set -e && \
+    cd /tmp && \
     curl -fsSL -o gdal-${GDAL_VER}.tar.xz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.xz \
-      || curl -fsSL -o gdal-${GDAL_VER}.tar.gz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.gz; \
+      || curl -fsSL -o gdal-${GDAL_VER}.tar.gz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.gz && \
     if [ -f gdal-${GDAL_VER}.tar.xz ]; then \
         tar -xJf gdal-${GDAL_VER}.tar.xz; \
     else \
         tar -xzf gdal-${GDAL_VER}.tar.gz; \
-    fi; \
-    cd gdal-${GDAL_VER}; \
-    mkdir build && cd build; \
+    fi && \
+    cd gdal-${GDAL_VER} && \
+    mkdir build && cd build && \
     cmake -G Ninja ../ \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX=/usr/local; \
-    cmake --build . -- -j"$(nproc)"; \
-    cmake --install .; \
-    ldconfig; \
-    rm -rf /tmp/gdal-${GDAL_VER}*; \
-    rm -rf /var/lib/apt/lists/*; \
+      -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    cmake --build . -- -j"$(nproc)" && \
+    cmake --install . && \
+    ldconfig && \
+    rm -rf /tmp/gdal-${GDAL_VER}* && \
     gdal-config --version
-
-#####
 
 # -------------------------------------------------------------------
 # Entrypoint
 # -------------------------------------------------------------------
+COPY nc-sync /usr/local/bin/nc-sync
+RUN chmod 755 /usr/local/bin/nc-sync
+
 COPY entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
