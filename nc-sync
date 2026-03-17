@@ -1,7 +1,14 @@
 #!/bin/bash
 rmdir --ignore-fail-on-non-empty /home/jovyan/work
-workdir='/workspace'
+
+workdir='/home/jovyan/drive'
 mkdir -p ${workdir}
+
+cd /workspace
+if [ ! -L drive ]; then
+  ln -s /home/jovyan/drive/
+fi
+
 server="http://${NEXTCLOUD_HOST:-localhost:8081}"
 json_file="${workdir}/.access_token.json"
 
