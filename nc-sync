@@ -5,9 +5,7 @@ workdir='/home/jovyan/drive'
 mkdir -p ${workdir}
 
 cd /workspace
-if [ -e drive ] && [ ! -L drive ]; then
-  echo "WARNING: 'drive' exists but is not a symlink, skipping"
-elif [ ! -L drive ]; then
+if [ ! -L drive ]; then
   ln -s /home/jovyan/drive/
 fi
 
