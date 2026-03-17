@@ -1,6 +1,9 @@
 #!/bin/bash
 rmdir --ignore-fail-on-non-empty /home/jovyan/work
 
+workdir='/home/jovyan/drive'
+mkdir -p ${workdir}
+
 cd /workspace
 if [ -e drive ] && [ ! -L drive ]; then
   echo "WARNING: 'drive' exists but is not a symlink, skipping"
