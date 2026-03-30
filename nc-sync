@@ -39,8 +39,21 @@ function get_token {
 
 function ncsync {
   while true; do
-    nextcloudcmd -s --user ${JUPYTERHUB_USER} --password $(get_token) --path / "${workdir}" "${server}"
+    token="$(get_token)"
+
+    if [[ -n "${token}" && "${token}" != "null" && -n "${JUPYTERHUB_USER}" ]]; then
+      nextcloudcmd -n -s \
+        --user "${JUPYTERHUB_USER}" \
+        --password "${token}" \
+        --path / \
+        "${workdir}" \
+        "${server}" || true
+    else
+      echo "[nc-sync] missing token or user, skipping sync"
+    fi
+
     sleep 5s
   done
 }
+
 ncsync &
