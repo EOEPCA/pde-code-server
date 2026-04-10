@@ -29,6 +29,9 @@ RUN apt-get update && apt-get install -y \
     nextcloud-desktop-cmd=3.11.0-1.1build4 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN usermod -u 1001 ${USER} && \
+    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
+
 # -------------------------------------------------------------------
 # code-server
 # -------------------------------------------------------------------
