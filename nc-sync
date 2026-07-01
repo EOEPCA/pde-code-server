@@ -1,58 +1,116 @@
-#!/bin/bash
-rmdir --ignore-fail-on-non-empty /home/jovyan/work
+#!/usr/bin/env bash
+set -euo pipefail
 
-workdir='/home/jovyan/drive'
-mkdir -p ${workdir}
+workdir="/home/jovyan/drive"
+workspace="/workspace"
 
-cd /workspace
-if [ ! -L drive ]; then
-  ln -s /home/jovyan/drive/
+NC_SYNC_INTERVAL="${NC_SYNC_INTERVAL:-60s}"
+NC_SYNC_BACKOFF="${NC_SYNC_BACKOFF:-300s}"
+NC_SYNC_TIMEOUT="${NC_SYNC_TIMEOUT:-6h}"
+
+rmdir --ignore-fail-on-non-empty /home/jovyan/work || true
+
+mkdir -p "${workdir}"
+
+if [[ ! -d "${workspace}" ]]; then
+  echo "[nc-sync] ERROR: ${workspace} does not exist"
+  exit 1
+fi
+
+cd "${workspace}"
+
+if [[ -e drive && ! -L drive ]]; then
+  echo "[nc-sync] ERROR: ${workspace}/drive exists but is not a symlink"
+  exit 1
+fi
+
+if [[ ! -L drive ]]; then
+  ln -s "${workdir}" drive
 fi
 
 server="http://${NEXTCLOUD_HOST:-localhost:8081}"
 json_file="${workdir}/.access_token.json"
 
-function refresh_token {
-  json="$(curl --header "Authorization: token ${JUPYTERHUB_API_TOKEN}" http://${JUPYTER_HOST}/services/refresh-token/tokens)"
-  if [[ -z "${json}" ]]; then
-    token="${NEXTCLOUD_ACCESS_TOKEN}"
-    json="{ \"access_token\": \"${token}\", \"token_expires\": $(date -d "10 min" +%s).0000000 }"
+# Exclude eodata from Nextcloud sync
+exclude_file="${workdir}/.sync-exclude.lst"
+cat > "${exclude_file}" <<'EOF'
+eodata
+eodata/*
+EOF
+
+refresh_token() {
+  local json token expires_at
+
+  json=""
+
+  if [[ -n "${JUPYTERHUB_API_TOKEN:-}" && -n "${JUPYTER_HOST:-}" ]]; then
+    json="$(curl -fsS \
+      --header "Authorization: token ${JUPYTERHUB_API_TOKEN}" \
+      "http://${JUPYTER_HOST}/services/refresh-token/tokens" || true)"
   fi
+
+  if [[ -z "${json}" || "$(echo "${json}" | jq -r '.access_token // empty' 2>/dev/null)" == "" ]]; then
+    if [[ -z "${NEXTCLOUD_ACCESS_TOKEN:-}" ]]; then
+      echo "[nc-sync] ERROR: unable to refresh token and NEXTCLOUD_ACCESS_TOKEN is not set" >&2
+      return 1
+    fi
+
+    token="${NEXTCLOUD_ACCESS_TOKEN}"
+    expires_at="$(date -d "10 min" +%s)"
+
+    json="$(jq -n \
+      --arg token "${token}" \
+      --argjson expires "${expires_at}" \
+      '{access_token: $token, token_expires: $expires}')"
+  fi
+
   echo "${json}" > "${json_file}"
-  token=$(jq -r '.access_token' "${json_file}")
-  echo "${token}"
+
+  jq -r '.access_token // empty' "${json_file}"
 }
 
-function get_token {
-  if [[ -f "${json_file}" ]]; then
-    now=$(date +%s)
-    token=$(jq -r '.access_token' "${json_file}")
-    expires_at=$(jq -r '.token_expires' "${json_file}"| sed 's/\..*//')
-    if [[ "${expires_at}" -lt ${now} ]]; then
-      token=$(refresh_token)
+get_token() {
+  local now token expires_at
+
+  if [[ -f "${json_file}" ]] && jq empty "${json_file}" >/dev/null 2>&1; then
+    now="$(date +%s)"
+    token="$(jq -r '.access_token // empty' "${json_file}")"
+    expires_at="$(jq -r '.token_expires // 0' "${json_file}" | sed 's/\..*//')"
+
+    if [[ -z "${token}" || ! "${expires_at}" =~ ^[0-9]+$ || "${expires_at}" -lt "${now}" ]]; then
+      refresh_token
+    else
+      echo "${token}"
     fi
   else
-    token=$(refresh_token)
+    refresh_token
   fi
-  echo "${token}"
 }
 
-function ncsync {
+ncsync() {
   while true; do
-    token="$(get_token)"
+    token="$(get_token || true)"
 
-    if [[ -n "${token}" && "${token}" != "null" && -n "${JUPYTERHUB_USER}" ]]; then
-      nextcloudcmd -n -s \
+    if [[ -n "${token}" && "${token}" != "null" && -n "${JUPYTERHUB_USER:-}" ]]; then
+      echo "[nc-sync] starting sync"
+
+      if timeout "${NC_SYNC_TIMEOUT}" nextcloudcmd -n -s \
         --user "${JUPYTERHUB_USER}" \
         --password "${token}" \
+        --exclude "${exclude_file}" \
         --path / \
         "${workdir}" \
-        "${server}" || true
+        "${server}"; then
+        echo "[nc-sync] sync completed"
+        sleep "${NC_SYNC_INTERVAL}"
+      else
+        echo "[nc-sync] WARNING: sync failed or timed out, backing off"
+        sleep "${NC_SYNC_BACKOFF}"
+      fi
     else
       echo "[nc-sync] missing token or user, skipping sync"
+      sleep "${NC_SYNC_BACKOFF}"
     fi
-
-    sleep 5s
   done
 }
 
