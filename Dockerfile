@@ -29,13 +29,21 @@ RUN apt-get update && apt-get install -y \
     nextcloud-desktop-cmd=3.11.0-1.1build4 \
     && rm -rf /var/lib/apt/lists/*
 
+# Optional Java runtime (enable with --build-arg INSTALL_JRE=true)
+ARG INSTALL_JRE=true
+RUN if [ "${INSTALL_JRE}" = "true" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends openjdk-17-jre-headless && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
 RUN usermod -u 1001 ${USER} && \
     echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
 
 # -------------------------------------------------------------------
 # code-server
 # -------------------------------------------------------------------
-ARG CODE_RELEASE=4.108.1
+ARG CODE_RELEASE=4.138.0
 RUN mkdir -p /opt/code-server && \
     curl -fsSL \
       "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" \
@@ -106,7 +114,7 @@ RUN curl -fsSL \
 # -------------------------------------------------------------------
 # trivy
 # -------------------------------------------------------------------
-ARG TRIVY_VERSION=0.69.3
+ARG TRIVY_VERSION=0.74.0
 RUN curl -fsSL \
     https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb \
     -o /tmp/trivy.deb && \
