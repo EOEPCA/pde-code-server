@@ -5,7 +5,12 @@ on:
     branches: [develop, main]
     tags:
       - 'v*'
-
+  workflow_dispatch:
+    inputs:
+      GDAL_VER:
+        description: "GDAL version to use for Docker build"
+        required: false
+        default: "3.12.1"
 jobs:
   # ------------------------------------------------------------
   # Resolve release tag from ref
@@ -77,7 +82,15 @@ jobs:
           }
           EOF
           fi
-
+      - name: Resolve GDAL version
+        id: gdal
+        run: |
+          if [[ -n "${{ github.event.inputs.GDAL_VER }}" ]]; then
+            GDAL_VER="${{ github.event.inputs.GDAL_VER }}"
+          else
+            GDAL_VER="3.12.1"
+          fi
+          echo "GDAL_VER=${GDAL_VER}" >> $GITHUB_ENV
       - name: Build image with Kaniko (to tar)
         uses: docker://gcr.io/kaniko-project/executor:debug
         env:
@@ -86,6 +99,7 @@ jobs:
           args: >
             --context .
             --dockerfile Dockerfile
+            --build-arg GDAL_VER=${{ env.GDAL_VER }}
             --no-push
             --tar-path image.tar
 

@@ -19,6 +19,13 @@ To build the Docker image, run the following command:
 docker build -t eoepca/pde-code-server .
 ```
 
+To include OpenJDK 17 JRE (headless), enable the optional build argument
+(disabled by default):
+
+```bash
+docker build --build-arg INSTALL_JRE=true -t eoepca/pde-code-server .
+```
+
 ## Installed Tooling
 
 This image is based on Debian bookworm and Python 3.12, and provides a curated set of development, Kubernetes, and Earth-Observation workflow tools.
@@ -46,7 +53,7 @@ Installed system utilities:
 
 ### code-server
 
-- code-server: 4.108.1
+- code-server: 4.138.0
 
 Installed from official release tarball and available in PATH:
 
