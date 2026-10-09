@@ -13,18 +13,36 @@ This repository contains a Dockerfile to build a container that exposes [Code Se
 
 ### Building the Docker Image
 
-To build the Docker image, run the following command:
+Build the local AMD64 image with:
 
 ```bash
-docker build -t eoepca/pde-code-server .
+docker build --platform=linux/amd64 -t eoepca/pde-code-server:local .
 ```
 
-To include OpenJDK 17 JRE (headless), enable the optional build argument
-(disabled by default):
+The image includes the required OpenJDK 17 JDK and is built for AMD64 because
+the standalone binaries used by the image are AMD64 builds.
+
+### Running Locally
+
+The proxy uses OAuth by default for ApplicationHub deployments. For standalone
+local use, disable proxy authentication and bind the service to localhost:
 
 ```bash
-docker build --build-arg INSTALL_JRE=true -t eoepca/pde-code-server .
+docker run --rm -it \
+  --platform=linux/amd64 \
+  -e JHSINGLE_NATIVE_PROXY_AUTHTYPE=none \
+  -p 127.0.0.1:8888:8888 \
+  -v "$PWD:/workspace" \
+  eoepca/pde-code-server:local
 ```
+
+Open <http://127.0.0.1:8888>. If port 8888 is already in use, change the host
+port (the first port in `-p`) and use that port in the URL. The container
+image must be rebuilt after changes to the entrypoint. At startup, `nc-sync`
+creates `/workspace/drive` as a symlink to `/home/jovyan/drive` inside the
+container. With the project directory mounted at `/workspace`, this symlink
+also appears in the project directory on the host; it is generated runtime
+state and should not be committed.
 
 ## Installed Tooling
 
@@ -36,8 +54,10 @@ All non-distro binaries are pinned to explicit versions to ensure reproducibilit
 
 - OS: Debian GNU/Linux 12 (bookworm)
 - Python: 3.12.11
-- Node.js: 18.x (Debian package)
-- npm: bundled with Node.js
+- NVM: v0.40.3, installed at `/opt/nvm`
+- Node.js: v22.15.0, installed via NVM and available on `PATH`
+- npm: bundled with Node.js 22
+- Java: OpenJDK 17 JDK (headless), required and installed from Debian packages
 
 Installed system utilities:
 

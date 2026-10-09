@@ -34,8 +34,17 @@ destport=$((port + 1))
 
 echo "Using internal port $destport"
 
+auth_type="${JHSINGLE_NATIVE_PROXY_AUTHTYPE:-oauth}"
+case "$auth_type" in
+    oauth|none) ;;
+    *)
+        echo "Unsupported JHSINGLE_NATIVE_PROXY_AUTHTYPE: $auth_type (expected oauth or none)" >&2
+        exit 1
+        ;;
+esac
+
 if [ -z "$CODE_SERVER_WS" ]; then
     CODE_SERVER_WS="/workspace"
 fi
 
-jhsingle-native-proxy --port $port --destport $destport code-server {--}auth none {--}bind-addr 0.0.0.0:$destport {--}user-data-dir /workspace $CODE_SERVER_WS
+jhsingle-native-proxy --authtype "$auth_type" --port "$port" --destport "$destport" code-server {--}auth none {--}bind-addr "0.0.0.0:$destport" {--}user-data-dir /workspace "$CODE_SERVER_WS"
