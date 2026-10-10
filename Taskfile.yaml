@@ -2,7 +2,10 @@ version: '3'
 
 vars:
   IMAGE: eoepca/pde-code-server:local
+  PLATFORM: linux/amd64
   GDAL_VER: '3.12.1'
+  OUTPUT: /tmp/pde-code-server-multi.oci.tar
+  VSIX_DIR: /tmp/pde-extension-vsix
 
 tasks:
   default:
@@ -11,9 +14,22 @@ tasks:
       - task: build
 
   build:
-    desc: Build the AMD64 container image (override IMAGE or GDAL_VER as needed)
+    desc: Build and load one platform (PLATFORM=linux/amd64 or linux/arm64)
     preconditions:
       - sh: command -v docker
         msg: Docker must be installed to build the image.
+      - sh: 'test {{.PLATFORM | shellQuote}} = linux/amd64 || test {{.PLATFORM | shellQuote}} = linux/arm64'
+        msg: PLATFORM must be linux/amd64 or linux/arm64.
     cmds:
-      - docker build --platform=linux/amd64 --build-arg GDAL_VER={{.GDAL_VER | shellQuote}} -t {{.IMAGE | shellQuote}} .
+      - docker buildx build --platform={{.PLATFORM | shellQuote}} --build-arg GDAL_VER={{.GDAL_VER | shellQuote}} --load -t {{.IMAGE | shellQuote}} .
+
+  build:multi:
+    desc: Build both platforms into a local OCI archive (requires a docker-container Buildx builder)
+    cmds:
+      - docker buildx build --platform=linux/amd64,linux/arm64 --build-arg GDAL_VER={{.GDAL_VER | shellQuote}} --output type=oci,dest={{.OUTPUT | shellQuote}} -t {{.IMAGE | shellQuote}} .
+
+  test:
+    desc: Check tools, identity, startup, and released extensions in the local image
+    cmds:
+      - python3 ci/test-extensions.py download {{.VSIX_DIR | shellQuote}}
+      - bash ci/test-image.sh {{.IMAGE | shellQuote}} {{.PLATFORM | shellQuote}} {{.VSIX_DIR | shellQuote}}

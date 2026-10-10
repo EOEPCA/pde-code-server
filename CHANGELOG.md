@@ -4,6 +4,31 @@ Notable project changes are recorded here for users and contributors.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- AMD64 and ARM64 binary downloads and native CI build/test jobs, with a combined
+  platform manifest and architecture-specific SBOM attachments.
+- Local Buildx tasks for either platform and a multi-platform OCI archive, plus
+  checks for tool execution, user identity, extensions, and entrypoint startup.
+
+### Changed
+
+- Align the `UID` environment variable with the actual `jovyan` UID of 1001.
+- Use Trivy 0.74.0 for CI scans, matching the pinned image scanner; both platform
+  assets are available, while the previous 0.50.2 binary asset URLs returned 404.
+
+### Fixed
+
+- Install Calrissian from commit `a95d87dd213d51b11faea7c6def4ced46d466a4a`
+  with compatible isolated dependencies and bundled Dask resources.
+- Preinstall Hatch 1.16.2 and its runtime dependencies in an isolated environment,
+  avoiding a first-use download; add offline Hatch and Calrissian smoke checks.
+- Ensure the default workspace is writable by jovyan for tool configuration.
+- Make Mike Farah's pinned `yq` the default command while retaining the Python
+  `yq` dependency and `tomlq`/`xq` launchers; smoke-test YAML and TOML processing.
+
 ## [1.4.0] - 2026-10-10
 
 ### Added
