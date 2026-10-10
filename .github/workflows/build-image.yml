@@ -103,6 +103,30 @@ jobs:
             --no-push
             --tar-path image.tar
 
+      - name: Download latest released extension VSIXs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 ci/test-extensions.py download extension-vsix
+
+      - name: Test extension installation and runtime requirements
+        run: |
+          set -euo pipefail
+          skopeo copy docker-archive:image.tar docker-daemon:pde-extension-test:ci
+          docker run --rm --platform linux/amd64 \
+            --entrypoint python3 \
+            -v "$PWD/ci:/opt/extension-ci:ro" \
+            -v "$PWD/extension-vsix:/opt/extension-vsix:ro" \
+            pde-extension-test:ci \
+            /opt/extension-ci/test-extensions.py test /opt/extension-vsix
+
+      - name: Record tested extension releases
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tested-extension-releases
+          path: extension-vsix/*.release.json
+          if-no-files-found: ignore
+
       # --------------------------------------------------------
       # Trivy scan (relaxed for now)
       # --------------------------------------------------------

@@ -1,0 +1,19 @@
+version: '3'
+
+vars:
+  IMAGE: eoepca/pde-code-server:local
+  GDAL_VER: '3.12.1'
+
+tasks:
+  default:
+    desc: Build the local container image
+    cmds:
+      - task: build
+
+  build:
+    desc: Build the AMD64 container image (override IMAGE or GDAL_VER as needed)
+    preconditions:
+      - sh: command -v docker
+        msg: Docker must be installed to build the image.
+    cmds:
+      - docker build --platform=linux/amd64 --build-arg GDAL_VER={{.GDAL_VER | shellQuote}} -t {{.IMAGE | shellQuote}} .

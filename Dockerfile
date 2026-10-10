@@ -15,8 +15,6 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     git \
-    nodejs \
-    npm \
     nano \
     net-tools \
     sudo \
@@ -26,19 +24,32 @@ RUN apt-get update && apt-get install -y \
     tree \
     podman \
     skopeo \
+    openjdk-17-jdk-headless \
     nextcloud-desktop-cmd=3.11.0-1.1build4 \
     && rm -rf /var/lib/apt/lists/*
 
-# Optional Java runtime (enable with --build-arg INSTALL_JRE=true)
-ARG INSTALL_JRE=true
-RUN if [ "${INSTALL_JRE}" = "true" ]; then \
-        apt-get update && \
-        apt-get install -y --no-install-recommends openjdk-17-jre-headless && \
-        rm -rf /var/lib/apt/lists/*; \
-    fi
-
 RUN usermod -u 1001 ${USER} && \
     echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
+
+# -------------------------------------------------------------------
+# NVM and Node.js
+# -------------------------------------------------------------------
+ARG NVM_VERSION=v0.40.3
+ARG NODE_VERSION=22.15.0
+
+ENV NVM_DIR=/opt/nvm
+
+RUN mkdir -p "${NVM_DIR}" && \
+    curl -fsSL \
+      "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" \
+      | bash && \
+    bash -c '. "${NVM_DIR}/nvm.sh" && nvm install "${NODE_VERSION}" && nvm alias default "${NODE_VERSION}"' && \
+    chown -R jovyan:users "${NVM_DIR}"
+
+ENV PATH="${NVM_DIR}/versions/node/v${NODE_VERSION}/bin:${PATH}"
+
+RUN printf '\nexport NVM_DIR="/opt/nvm"\n[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\n' \
+    >> /etc/bash.bashrc
 
 # -------------------------------------------------------------------
 # code-server
@@ -78,7 +89,11 @@ RUN curl -fsSL \
 # Python tooling
 # -------------------------------------------------------------------
 ARG CALRISSIAN_VERSION=0.18.1
+ARG CALRISSIAN_CWL_UTILS_VERSION=0.40
+COPY requirements-cwl-uml.txt /tmp/requirements-cwl-uml.txt
+
 RUN pip install --no-cache-dir \
+    -r /tmp/requirements-cwl-uml.txt \
     awscli \
     awscli-plugin-endpoint \
     "jhsingle-native-proxy>=0.0.9" \
@@ -86,9 +101,14 @@ RUN pip install --no-cache-dir \
     tomlq \
     uv \
     cwltool \
-    cwltest \
-    "calrissian==${CALRISSIAN_VERSION}" && \
+    cwltest && \
     python -m bash_kernel.install
+
+RUN python -m venv /opt/calrissian-venv && \
+    /opt/calrissian-venv/bin/pip install --no-cache-dir \
+      "cwl-utils==${CALRISSIAN_CWL_UTILS_VERSION}" \
+      "calrissian==${CALRISSIAN_VERSION}" && \
+    ln -s /opt/calrissian-venv/bin/calrissian /usr/local/bin/calrissian
 
 # -------------------------------------------------------------------
 # yq / jq
@@ -126,7 +146,7 @@ RUN curl -fsSL \
 # -------------------------------------------------------------------
 ARG GDAL_VER=3.12.1
 RUN apt-get update && apt-get install -y \
-    cmake ninja-build libproj-dev proj-data proj-bin && \
+    cmake g++ ninja-build xz-utils libproj-dev proj-data proj-bin && \
     rm -rf /var/lib/apt/lists/* && \
     set -e && \
     cd /tmp && \

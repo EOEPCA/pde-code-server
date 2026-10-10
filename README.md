@@ -13,20 +13,73 @@ This repository contains a Dockerfile to build a container that exposes [Code Se
 
 ### Building the Docker Image
 
-To build the Docker image, run the following command:
+Build the local AMD64 image with:
 
 ```bash
-docker build -t eoepca/pde-code-server .
+docker build --platform=linux/amd64 -t eoepca/pde-code-server:local .
 ```
 
-To include OpenJDK 17 JRE (headless), enable the optional build argument
-(disabled by default):
+With [Task](https://taskfile.dev/) installed, run `task build` (or `task`).
+Override the image tag or GDAL version when needed:
 
 ```bash
-docker build --build-arg INSTALL_JRE=true -t eoepca/pde-code-server .
+task build IMAGE=eoepca/pde-code-server:dev GDAL_VER=3.12.1
 ```
+
+The image includes the required OpenJDK 17 JDK and is built for AMD64 because
+the standalone binaries used by the image are AMD64 builds.
+
+### Running Locally
+
+The proxy uses OAuth by default for ApplicationHub deployments. For standalone
+local use, disable proxy authentication and bind the service to localhost:
+
+```bash
+docker run --rm -it \
+  --platform=linux/amd64 \
+  -e JHSINGLE_NATIVE_PROXY_AUTHTYPE=none \
+  -p 127.0.0.1:8888:8888 \
+  -v "$PWD:/workspace" \
+  eoepca/pde-code-server:local
+```
+
+Open <http://127.0.0.1:8888>. If port 8888 is already in use, change the host
+port (the first port in `-p`) and use that port in the URL. The container
+image must be rebuilt after changes to the entrypoint. At startup, `nc-sync`
+creates `/workspace/drive` as a symlink to `/home/jovyan/drive` inside the
+container. With the project directory mounted at `/workspace`, this symlink
+also appears in the project directory on the host; it is generated runtime
+state and should not be committed.
 
 ## Installed Tooling
+
+### Extension compatibility checks
+
+Before publishing an image, CI downloads the latest stable release VSIXs from
+`eoap/eoap-validator-vscode`, `eoap/cwl-metadata-editor`, and
+`eoap/cwl-uml-viewer`. It installs them with `code-server` as the image's default
+user and checks the installed IDs and versions. It also checks Python dependency
+consistency, installs the validator's bundled wheel in a fresh virtual environment,
+loads its CLI, and renders the UML viewer's sample through its installed Python
+bridge and bundled Java renderer for every available diagram type.
+
+Failures block image publication. The tested release tags and download URLs are
+saved as a CI artifact. These checks use the image's default runtime settings;
+they do not exercise editor UI interactions or extension activation. Latest
+upstream releases are intentionally used, so a new incompatible release can fail
+CI without changes here. Extensions are installed only in the disposable test
+container.
+
+To run the same check against a locally built image:
+
+```bash
+python3 ci/test-extensions.py download /tmp/pde-extension-vsix
+docker run --rm --platform linux/amd64 --entrypoint python3 \
+  -v "$PWD/ci:/opt/extension-ci:ro" \
+  -v /tmp/pde-extension-vsix:/opt/extension-vsix:ro \
+  eoepca/pde-code-server:local \
+  /opt/extension-ci/test-extensions.py test /opt/extension-vsix
+```
 
 This image is based on Debian bookworm and Python 3.12, and provides a curated set of development, Kubernetes, and Earth-Observation workflow tools.
 
@@ -36,8 +89,10 @@ All non-distro binaries are pinned to explicit versions to ensure reproducibilit
 
 - OS: Debian GNU/Linux 12 (bookworm)
 - Python: 3.12.11
-- Node.js: 18.x (Debian package)
-- npm: bundled with Node.js
+- NVM: v0.40.3, installed at `/opt/nvm`
+- Node.js: v22.15.0, installed via NVM and available on `PATH`
+- npm: bundled with Node.js 22
+- Java: OpenJDK 17 JDK (headless), required and installed from Debian packages
 
 Installed system utilities:
 
