@@ -4,6 +4,33 @@ Notable project changes are recorded here for users and contributors.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.0] - 2026-10-10
+
+### Added
+
+- Pinned CWL and transpiler tooling for EOAP extension runtime requirements.
+- CI installation checks for the latest released EOAP Validator, CWL Metadata
+  Editor, and CWL UML Viewer VSIXs, with Python dependency checks, validator
+  environment setup, and rendering checks for all available UML diagram types.
+  Failures block image publication; tested release metadata is saved as an artifact.
+- A Taskfile for local AMD64 image builds with image tag and GDAL version overrides.
+- Standalone local operation through `JHSINGLE_NATIVE_PROXY_AUTHTYPE=none`,
+  with OAuth retained as the default.
+
+### Changed
+
+- Install Node.js 22.15.0 through NVM 0.40.3 instead of distro Node.js packages.
+- Require the OpenJDK 17 headless JDK, replacing the optional Java runtime and
+  removing the `INSTALL_JRE` build argument.
+- Install Calrissian 0.18.1 and its pinned `cwl-utils` 0.40 dependency in an
+  isolated virtual environment to avoid conflicts with the image's CWL tooling.
+- Document local image builds, standalone usage, and extension compatibility checks.
+
+### Fixed
+
+- Include the C++ compiler and XZ utilities required for the GDAL source build.
+- Validate proxy authentication modes and quote entrypoint arguments.
+
 ## [1.3.0] - 2026-10-06
 
 ### Added
@@ -65,6 +92,8 @@ at the earliest Git tag.
   tooling versions, and install code-server 4.108.1 from its release tarball.
 - Refactor the CI container build and publishing workflow.
 
-[Unreleased]: https://github.com/EOEPCA/pde-code-server/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/EOEPCA/pde-code-server/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/EOEPCA/pde-code-server/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/EOEPCA/pde-code-server/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/EOEPCA/pde-code-server/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/EOEPCA/pde-code-server/releases/tag/v1.1.0

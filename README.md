@@ -81,18 +81,20 @@ docker run --rm --platform linux/amd64 --entrypoint python3 \
   /opt/extension-ci/test-extensions.py test /opt/extension-vsix
 ```
 
-This image is based on Debian bookworm and Python 3.12, and provides a curated set of development, Kubernetes, and Earth-Observation workflow tools.
+This image is based on the Jupyter Python 3.12 base notebook image (currently
+Ubuntu 24.04) and provides a curated set of development, Kubernetes, and
+Earth-Observation workflow tools.
 
 All non-distro binaries are pinned to explicit versions to ensure reproducibility.
 
 ### Base System
 
-- OS: Debian GNU/Linux 12 (bookworm)
+- OS: Ubuntu 24.04 (from the current Jupyter base image)
 - Python: 3.12.11
 - NVM: v0.40.3, installed at `/opt/nvm`
 - Node.js: v22.15.0, installed via NVM and available on `PATH`
 - npm: bundled with Node.js 22
-- Java: OpenJDK 17 JDK (headless), required and installed from Debian packages
+- Java: OpenJDK 17 JDK (headless), required and installed from distro packages
 
 Installed system utilities:
 
@@ -166,7 +168,8 @@ Installed via pip (Python 3.12):
 
 * calrissian: 0.18.1
 
-  CWL runner for Kubernetes.
+  CWL runner for Kubernetes, installed in `/opt/calrissian-venv` with
+  `cwl-utils==0.40` to isolate its dependencies from the image's CWL tooling.
 
 * jhsingle-native-proxy (>= 0.0.9)
 
