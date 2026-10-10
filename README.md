@@ -46,6 +46,34 @@ state and should not be committed.
 
 ## Installed Tooling
 
+### Extension compatibility checks
+
+Before publishing an image, CI downloads the latest stable release VSIXs from
+`eoap/eoap-validator-vscode`, `eoap/cwl-metadata-editor`, and
+`eoap/cwl-uml-viewer`. It installs them with `code-server` as the image's default
+user and checks the installed IDs and versions. It also checks Python dependency
+consistency, installs the validator's bundled wheel in a fresh virtual environment,
+loads its CLI, and renders the UML viewer's sample through its installed Python
+bridge and bundled Java renderer for every available diagram type.
+
+Failures block image publication. The tested release tags and download URLs are
+saved as a CI artifact. These checks use the image's default runtime settings;
+they do not exercise editor UI interactions or extension activation. Latest
+upstream releases are intentionally used, so a new incompatible release can fail
+CI without changes here. Extensions are installed only in the disposable test
+container.
+
+To run the same check against a locally built image:
+
+```bash
+python3 ci/test-extensions.py download /tmp/pde-extension-vsix
+docker run --rm --platform linux/amd64 --entrypoint python3 \
+  -v "$PWD/ci:/opt/extension-ci:ro" \
+  -v /tmp/pde-extension-vsix:/opt/extension-vsix:ro \
+  eoepca/pde-code-server:local \
+  /opt/extension-ci/test-extensions.py test /opt/extension-vsix
+```
+
 This image is based on Debian bookworm and Python 3.12, and provides a curated set of development, Kubernetes, and Earth-Observation workflow tools.
 
 All non-distro binaries are pinned to explicit versions to ensure reproducibility.
