@@ -3,179 +3,172 @@ name: build
 on:
   push:
     branches: [develop, main]
-    tags:
-      - 'v*'
+    tags: ['v*']
+  pull_request:
+    branches: [develop, main]
   workflow_dispatch:
     inputs:
       GDAL_VER:
-        description: "GDAL version to use for Docker build"
+        description: GDAL version to use for Docker build
         required: false
-        default: "3.12.1"
+        default: '3.12.1'
+
+permissions:
+  contents: read
+
 jobs:
-  # ------------------------------------------------------------
-  # Resolve release tag from ref
-  # ------------------------------------------------------------
   release-meta:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
+      image: ${{ steps.meta.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install PyYAML
       - id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF}" == "refs/heads/develop" ]]; then
-            TAG="latest-dev"
-          elif [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            TAG="latest"
-          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            TAG="${GITHUB_REF#refs/tags/v}"
+          python - <<'PY'
+          import os, yaml
+          with open('release.yaml') as stream:
+              release = yaml.safe_load(stream)
+          ref = os.environ['GITHUB_REF']
+          if os.environ['EVENT_NAME'] == 'pull_request':
+              tag = 'pr-test'
+          elif ref == 'refs/heads/develop':
+              tag = 'latest-dev'
+          elif ref == 'refs/heads/main':
+              tag = 'latest'
+          elif ref.startswith('refs/tags/v'):
+              tag = ref.removeprefix('refs/tags/v')
+              if tag != str(release['image_version']):
+                  raise SystemExit('Git tag does not match release.yaml image_version')
+          else:
+              raise SystemExit(f'Unsupported release ref: {ref}')
+          image = '/'.join(release[key] for key in ('image_registry', 'image_prefix', 'image_name'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+              stream.write(f'tag={tag}\nimage={image}\n')
+          PY
 
-            # --------------------------------------------------
-            # Validate against release.yaml
-            # --------------------------------------------------
-            RELEASE_VERSION=$(yq -r '.image_version' release.yaml)
-
-            if [[ -z "${RELEASE_VERSION}" || "${RELEASE_VERSION}" == "null" ]]; then
-              echo "image_version not found in release.yaml"
-              exit 1
-            fi
-
-            if [[ "${TAG}" != "${RELEASE_VERSION}" ]]; then
-              echo "Git tag v${TAG} does not match release.yaml version ${RELEASE_VERSION}"
-              exit 1
-            fi
-          else
-            echo "Unsupported ref ${GITHUB_REF}"
-            exit 1
-          fi
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-
-  # ------------------------------------------------------------
-  # Build, scan, SBOM, push
-  # ------------------------------------------------------------
-  build-scan-push:
-    needs: release-meta
-    runs-on: ubuntu-latest
-
+  extension-releases:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install tooling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq skopeo
-          curl -sL https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_amd64.tar.gz | tar -xz oras
-          sudo mv oras /usr/local/bin/oras
-
-      - name: Configure Docker Hub auth for Kaniko
-        run: |
-          if [[ -n "${{ secrets.dockerhub-username }}" ]]; then
-            mkdir -p $HOME/.docker
-            cat > $HOME/.docker/config.json <<EOF
-          {
-              "auths": {
-                "https://index.docker.io/v1/": {
-                  "auth": "$(echo -n "${{ secrets.dockerhub-username }}:${{ secrets.dockerhub-token }}" | base64 -w0)"
-                }
-              }
-          }
-          EOF
-          fi
-      - name: Resolve GDAL version
-        id: gdal
-        run: |
-          if [[ -n "${{ github.event.inputs.GDAL_VER }}" ]]; then
-            GDAL_VER="${{ github.event.inputs.GDAL_VER }}"
-          else
-            GDAL_VER="3.12.1"
-          fi
-          echo "GDAL_VER=${GDAL_VER}" >> $GITHUB_ENV
-      - name: Build image with Kaniko (to tar)
-        uses: docker://gcr.io/kaniko-project/executor:debug
-        env:
-          DOCKER_CONFIG: /github/home/.docker
-        with:
-          args: >
-            --context .
-            --dockerfile Dockerfile
-            --build-arg GDAL_VER=${{ env.GDAL_VER }}
-            --no-push
-            --tar-path image.tar
-
-      - name: Download latest released extension VSIXs
+      - name: Download the same released VSIXs for both architectures
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 ci/test-extensions.py download extension-vsix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-vsix
+          path: extension-vsix/
 
-      - name: Test extension installation and runtime requirements
+  build-test:
+    needs: [release-meta, extension-releases]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: actions/download-artifact@v4
+        with:
+          name: extension-vsix
+          path: extension-vsix
+      - name: Build and load architecture image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          tags: pde-extension-test:ci
+          build-args: GDAL_VER=${{ inputs.GDAL_VER || '3.12.1' }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+          provenance: false
+      - name: Test tools, identity, extensions, and entrypoint
+        env:
+          PLATFORM: linux/${{ matrix.arch }}
+        run: bash ci/test-image.sh pde-extension-test:ci "$PLATFORM" "$PWD/extension-vsix"
+      - name: Save tested image
+        run: docker save pde-extension-test:ci -o image.tar
+      - name: Install pinned scan tooling
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          skopeo copy docker-archive:image.tar docker-daemon:pde-extension-test:ci
-          docker run --rm --platform linux/amd64 \
-            --entrypoint python3 \
-            -v "$PWD/ci:/opt/extension-ci:ro" \
-            -v "$PWD/extension-vsix:/opt/extension-vsix:ro" \
-            pde-extension-test:ci \
-            /opt/extension-ci/test-extensions.py test /opt/extension-vsix
-
-      - name: Record tested extension releases
-        if: always()
+          case "$ARCH" in amd64) TRIVY_ARCH=64bit ;; arm64) TRIVY_ARCH=ARM64 ;; esac
+          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-${TRIVY_ARCH}.tar.gz" | tar -xz trivy
+          sudo install trivy /usr/local/bin/trivy
+      - name: Trivy scan (relaxed for now)
+        env:
+          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+        run: trivy image --input image.tar --severity HIGH,CRITICAL --exit-code 0 --no-progress
+      - name: Generate architecture SBOM
+        run: trivy image --input image.tar --format spdx-json --output sbom.spdx.json
+      - name: Upload tested image and its SBOM
         uses: actions/upload-artifact@v4
         with:
-          name: tested-extension-releases
-          path: extension-vsix/*.release.json
-          if-no-files-found: ignore
+          name: image-${{ matrix.arch }}
+          path: |
+            image.tar
+            sbom.spdx.json
+          retention-days: 1
 
-      # --------------------------------------------------------
-      # Trivy scan (relaxed for now)
-      # --------------------------------------------------------
-      - name: Trivy scan (debug mode)
-        uses: docker://aquasec/trivy:0.50.2
-        env:
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
+  # Neither architecture is published until both native build/test jobs pass.
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: [release-meta, build-test]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@v4
         with:
-          args: >
-            image
-            --input image.tar
-            --severity HIGH,CRITICAL
-            --exit-code 0
-            --no-progress
-
-      - name: Generate SBOM (SPDX JSON)
-        uses: docker://aquasec/trivy:0.50.2
-        env:
-          TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db
-        with:
-          args: >
-            image
-            --input image.tar
-            --format spdx-json
-            --output sbom.spdx.json
-
-      # --------------------------------------------------------
-      # Push image and attach SBOM
-      # --------------------------------------------------------
-      - name: Push image with Skopeo
-        id: push
+          pattern: image-*
+          path: images
+      - uses: docker/setup-buildx-action@v3
+      - name: Install publishing tools
         run: |
           set -euo pipefail
-
-          TAG=${{ needs.release-meta.outputs.tag }}
-          REGISTRY=$(yq -r '.image_registry' release.yaml)
-          IMAGE_PREFIX=$(yq -r '.image_prefix' release.yaml)
-          IMAGE=$(yq -r '.image_name' release.yaml)
-
-          IMAGE_REF="${REGISTRY}/${IMAGE_PREFIX}/${IMAGE}:${TAG}"
-
-          skopeo copy \
-            --dest-creds="${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-            docker-archive:image.tar \
-            docker://${IMAGE_REF}
-
-          DIGEST=$(skopeo inspect \
-            --creds="${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-            docker://${IMAGE_REF} \
-            | jq -r .Digest)
-
-          echo "${REGISTRY}/${IMAGE_PREFIX}/${IMAGE}@${DIGEST}" > image.digest
+          sudo apt-get update
+          sudo apt-get install -y skopeo jq
+          ARCH=$(dpkg --print-architecture)
+          curl -fsSL "https://github.com/oras-project/oras/releases/download/v1.2.2/oras_1.2.2_linux_${ARCH}.tar.gz" | tar -xz oras
+          sudo install oras /usr/local/bin/oras
+      - name: Publish architecture images, attach SBOMs, and create combined manifest
+        env:
+          IMAGE: ${{ needs.release-meta.outputs.image }}
+          TAG: ${{ needs.release-meta.outputs.tag }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          REGISTRY="${IMAGE%%/*}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login "$REGISTRY" --username "$REGISTRY_USER" --password-stdin
+          printf '%s' "$REGISTRY_TOKEN" | oras login "$REGISTRY" --username "$REGISTRY_USER" --password-stdin
+          refs=()
+          for arch in amd64 arm64; do
+            ARCH_REF="${IMAGE}:${TAG}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${arch}"
+            skopeo copy --dest-creds "${REGISTRY_USER}:${REGISTRY_TOKEN}" \
+              "docker-archive:images/image-${arch}/image.tar" "docker://${ARCH_REF}"
+            DIGEST=$(skopeo inspect --creds "${REGISTRY_USER}:${REGISTRY_TOKEN}" "docker://${ARCH_REF}" | jq -r .Digest)
+            # Attach each SBOM to the exact image digest it describes, not the index.
+            (cd "images/image-${arch}" && oras attach --artifact-type application/spdx+json \
+              "${IMAGE}@${DIGEST}" sbom.spdx.json:application/spdx+json)
+            refs+=("${IMAGE}@${DIGEST}")
+          done
+          docker buildx imagetools create --tag "${IMAGE}:${TAG}" "${refs[@]}"
+          docker buildx imagetools inspect "${IMAGE}:${TAG}"
