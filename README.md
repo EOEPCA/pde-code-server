@@ -19,6 +19,13 @@ Build the local AMD64 image with:
 docker build --platform=linux/amd64 -t eoepca/pde-code-server:local .
 ```
 
+With [Task](https://taskfile.dev/) installed, run `task build` (or `task`).
+Override the image tag or GDAL version when needed:
+
+```bash
+task build IMAGE=eoepca/pde-code-server:dev GDAL_VER=3.12.1
+```
+
 The image includes the required OpenJDK 17 JDK and is built for AMD64 because
 the standalone binaries used by the image are AMD64 builds.
 
