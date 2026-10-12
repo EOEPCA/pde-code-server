@@ -131,7 +131,7 @@ RUN curl -fsSL \
 # -------------------------------------------------------------------
 # hatch
 # -------------------------------------------------------------------
-ARG HATCH_VERSION=1.16.2
+ARG HATCH_VERSION=1.16.5
 ENV HATCH_CONFIG=/home/jovyan/.config/hatch/config.toml \
     HATCH_DATA_DIR=/home/jovyan/.local/share/hatch \
     HATCH_CACHE_DIR=/home/jovyan/.cache/hatch

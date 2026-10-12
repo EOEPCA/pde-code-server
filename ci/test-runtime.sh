@@ -11,14 +11,28 @@ test "$(readlink -f "$(command -v calrissian)")" = /opt/calrissian-venv/bin/calr
 fixture_dir="$(mktemp -d)"
 trap 'rm -rf "$fixture_dir"' EXIT
 
-[[ "$(hatch --version)" == 'Hatch, version 1.16.2' ]]
+[[ "$(hatch --version)" == 'Hatch, version 1.16.5' ]]
 cat > "$fixture_dir/pyproject.toml" <<'TOML'
 [project]
 name = "offline-smoke"
 version = "1.2.3"
+
+[tool.hatch.envs.default]
+skip-install = true
 TOML
 cd "$fixture_dir"
 [[ "$(hatch version)" == '1.2.3' ]]
+# Exercise interpreter discovery, which failed with older Hatch and virtualenv 21.
+# Skip project installation so this regression check can run without networking.
+hatch env create default
+environment_dir="$(hatch env find default)"
+test -x "$environment_dir/bin/python"
+(
+  source "$environment_dir/bin/activate"
+  test "$(command -v python)" = "$environment_dir/bin/python"
+  python -c 'import os, sys; assert sys.prefix == os.environ["VIRTUAL_ENV"]'
+)
+hatch env remove default
 /opt/hatch-venv/bin/python -m pip check
 
 /opt/calrissian-venv/bin/python - <<'PYTHON'

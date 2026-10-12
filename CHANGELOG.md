@@ -23,8 +23,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Install Calrissian from commit `a95d87dd213d51b11faea7c6def4ced46d466a4a`
   with compatible isolated dependencies and bundled Dask resources.
-- Preinstall Hatch 1.16.2 and its runtime dependencies in an isolated environment,
-  avoiding a first-use download; add offline Hatch and Calrissian smoke checks.
+- Preinstall Hatch 1.16.5 and its runtime dependencies in an isolated environment,
+  avoiding a first-use download and fixing interpreter discovery with virtualenv
+  21; add offline Hatch environment creation/activation and Calrissian smoke checks.
 - Ensure the default workspace is writable by jovyan for tool configuration.
 - Make Mike Farah's pinned `yq` the default command while retaining the Python
   `yq` dependency and `tomlq`/`xq` launchers; smoke-test YAML and TOML processing.
