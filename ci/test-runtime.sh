@@ -6,6 +6,8 @@ test "$(id -u)" = 1001
 test -w "$HATCH_CONFIG"
 test -w "$HATCH_DATA_DIR"
 test -w "$HATCH_CACHE_DIR"
+# Tools such as uv and pip create caches under the default /workspace HOME.
+test -z "$(find /workspace ! -user jovyan -print -quit)"
 test "$(readlink -f "$(command -v hatch)")" = /opt/hatch-venv/bin/hatch
 test "$(readlink -f "$(command -v calrissian)")" = /opt/calrissian-venv/bin/calrissian
 fixture_dir="$(mktemp -d)"
@@ -33,6 +35,8 @@ test -x "$environment_dir/bin/python"
   python -c 'import os, sys; assert sys.prefix == os.environ["VIRTUAL_ENV"]'
 )
 hatch env remove default
+# Activating a venv in a Bash kernel must not touch the prompt the kernel waits for.
+jupyter kernelspec list --json | python -c 'import json, sys; spec = json.load(sys.stdin)["kernelspecs"]["bash"]["spec"]; assert spec["env"]["VIRTUAL_ENV_DISABLE_PROMPT"] == "1", spec'
 /opt/hatch-venv/bin/python -m pip check
 
 /opt/calrissian-venv/bin/python - <<'PYTHON'

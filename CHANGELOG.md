@@ -26,7 +26,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Preinstall Hatch 1.16.5 and its runtime dependencies in an isolated environment,
   avoiding a first-use download and fixing interpreter discovery with virtualenv
   21; add offline Hatch environment creation/activation and Calrissian smoke checks.
-- Ensure the default workspace is writable by jovyan for tool configuration.
+- Set `VIRTUAL_ENV_DISABLE_PROMPT=1` for the Bash kernel only: when `~/.bashrc` activates a
+  virtual environment, activating another one in a notebook cell restored the pre-kernel
+  prompt and the cell never finished. Terminals keep the `(venv)` prompt.
+- Ensure the default workspace is writable by jovyan for tool configuration, and
+  remove the root-owned build cache that blocked `uv` and pip caches there.
 - Make Mike Farah's pinned `yq` the default command while retaining the Python
   `yq` dependency and `tomlq`/`xq` launchers; smoke-test YAML and TOML processing.
 
