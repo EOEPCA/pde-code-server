@@ -111,7 +111,8 @@ YAML fixture with `yq eval`, reads a TOML fixture with `tomlq`, and runs
 `python -m pip check`. The Python `yq` package remains installed for `tomlq`;
 only its conflicting `yq` launcher is replaced, leaving Conda's PATH intact.
 The focused runtime check also runs Hatch version and local project metadata
-commands without networking, verifies Calrissian's Git commit provenance, Dask
+commands, creates and activates a default environment without networking (skipping
+project installation), verifies Calrissian's Git commit provenance, Dask
 import, CLI flags, and bundled schema/init/dispose scripts, and checks both
 isolated environments' dependencies. It does not execute Dask on Kubernetes.
 To run these checks against a loaded image on either platform:
@@ -246,7 +247,7 @@ Installed via pip (Python 3.12):
 
 ### Python Build & Packaging
 
-- hatch: 1.16.2
+- hatch: 1.16.5
 
   Python project manager and build tool, installed with all runtime dependencies
   in `/opt/hatch-venv`, using the base image's native Python on AMD64 and ARM64.

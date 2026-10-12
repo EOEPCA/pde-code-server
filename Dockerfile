@@ -107,6 +107,11 @@ RUN pip install --no-cache-dir \
     cwltest && \
     python -m bash_kernel.install
 
+# Bash kernels detect a finished cell by their prompt. When ~/.bashrc activates a virtual
+# environment, activating another one in a cell restores the pre-kernel prompt and the cell
+# never finishes; keep venv activation away from the kernel prompt (terminals keep theirs).
+RUN python -c "import json, pathlib; p = pathlib.Path('/usr/local/share/jupyter/kernels/bash/kernel.json'); spec = json.loads(p.read_text()); spec.setdefault('env', {})['VIRTUAL_ENV_DISABLE_PROMPT'] = '1'; p.write_text(json.dumps(spec))"
+
 # Resolve the commit's cwltool/dependency requirements together, independently
 # of the global CWL tools, rather than constraining cwl-utils to the old release.
 RUN python -m venv /opt/calrissian-venv && \
@@ -131,7 +136,7 @@ RUN curl -fsSL \
 # -------------------------------------------------------------------
 # hatch
 # -------------------------------------------------------------------
-ARG HATCH_VERSION=1.16.2
+ARG HATCH_VERSION=1.16.5
 ENV HATCH_CONFIG=/home/jovyan/.config/hatch/config.toml \
     HATCH_DATA_DIR=/home/jovyan/.local/share/hatch \
     HATCH_CACHE_DIR=/home/jovyan/.cache/hatch
@@ -186,8 +191,10 @@ RUN apt-get update && apt-get install -y \
 # tomlq requires the Python yq package, whose console launcher shadows the
 # pinned Mike Farah binary on Conda's PATH. Keep its modules and tomlq/xq
 # launchers; replace only the conflicting command, without changing PATH.
-# Prepare the default workspace for non-root tools after runtime installation.
+# Prepare the default workspace for non-root tools after runtime installation,
+# dropping the root-owned cache that build-isolated pip runs leave in HOME.
 RUN ln -sf /usr/local/bin/yq /opt/conda/bin/yq && \
+    rm -rf /workspace/.cache && \
     install -d -o ${USER} -g users /workspace
 
 # -------------------------------------------------------------------
