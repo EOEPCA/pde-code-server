@@ -4,40 +4,15 @@ Notable project changes are recorded here for users and contributors.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.4.0] - 2026-10-30
 
 ### Added
-
 - AMD64 and ARM64 binary downloads and native CI build/test jobs, with a combined
   platform manifest and architecture-specific SBOM attachments.
 - Local Buildx tasks for either platform and a multi-platform OCI archive, plus
   checks for tool execution, user identity, extensions, and entrypoint startup.
-
-### Changed
-
-- Align the `UID` environment variable with the actual `jovyan` UID of 1001.
-- Use Trivy 0.74.0 for CI scans, matching the pinned image scanner; both platform
-  assets are available, while the previous 0.50.2 binary asset URLs returned 404.
-
-### Fixed
-
-- Install Calrissian from commit `a95d87dd213d51b11faea7c6def4ced46d466a4a`
-  with compatible isolated dependencies and bundled Dask resources.
-- Preinstall Hatch 1.16.5 and its runtime dependencies in an isolated environment,
-  avoiding a first-use download and fixing interpreter discovery with virtualenv
-  21; add offline Hatch environment creation/activation and Calrissian smoke checks.
-- Set `VIRTUAL_ENV_DISABLE_PROMPT=1` for the Bash kernel only: when `~/.bashrc` activates a
-  virtual environment, activating another one in a notebook cell restored the pre-kernel
-  prompt and the cell never finished. Terminals keep the `(venv)` prompt.
-- Ensure the default workspace is writable by jovyan for tool configuration, and
-  remove the root-owned build cache that blocked `uv` and pip caches there.
-- Make Mike Farah's pinned `yq` the default command while retaining the Python
-  `yq` dependency and `tomlq`/`xq` launchers; smoke-test YAML and TOML processing.
-
-## [1.4.0] - 2026-10-10
-
-### Added
-
+- Pull-request CI validation on both architectures, using the same downloaded
+  extension releases for AMD64 and ARM64.
 - Pinned CWL and transpiler tooling for EOAP extension runtime requirements.
 - CI installation checks for the latest released EOAP Validator, CWL Metadata
   Editor, and CWL UML Viewer VSIXs, with Python dependency checks, validator
@@ -55,12 +30,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Install Calrissian 0.18.1 and its pinned `cwl-utils` 0.40 dependency in an
   isolated virtual environment to avoid conflicts with the image's CWL tooling.
 - Document local image builds, standalone usage, and extension compatibility checks.
-
+- Replace Kaniko builds with Docker Buildx and publish the tested images only
+  after both native architecture build/test jobs pass.
+- Align the `UID` environment variable with the actual `jovyan` UID of 1001.
+- Use Trivy 0.74.0 for CI scans, matching the pinned image scanner; both platform
+  assets are available, while the previous 0.50.2 binary asset URLs returned 404.
 ### Fixed
 
 - Include the C++ compiler and XZ utilities required for the GDAL source build.
 - Validate proxy authentication modes and quote entrypoint arguments.
-
+- Install Calrissian from commit `a95d87dd213d51b11faea7c6def4ced46d466a4a`
+  with compatible isolated dependencies and bundled Dask resources.
+- Preinstall Hatch 1.16.5 and its runtime dependencies in an isolated environment,
+  avoiding a first-use download and fixing interpreter discovery with virtualenv
+  21; add offline Hatch environment creation/activation and Calrissian smoke checks.
+- Set `VIRTUAL_ENV_DISABLE_PROMPT=1` for the Bash kernel only: when `~/.bashrc` activates a
+  virtual environment, activating another one in a notebook cell restored the pre-kernel
+  prompt and the cell never finished. Terminals keep the `(venv)` prompt.
+- Ensure the default workspace is writable by jovyan for tool configuration, and
+  remove the root-owned build cache that blocked `uv` and pip caches there.
+- Store Hatch configuration, data, and caches in writable directories under
+  `/home/jovyan`, including when a volume is mounted at `/workspace`.
+- Make Mike Farah's pinned `yq` the default command while retaining the Python
+  `yq` dependency and `tomlq`/`xq` launchers; smoke-test YAML and TOML processing.
 ## [1.3.0] - 2026-10-06
 
 ### Added
