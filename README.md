@@ -29,9 +29,10 @@ task build IMAGE=eoepca/pde-code-server:dev GDAL_VER=3.12.1
 ```
 
 Both `linux/amd64` and `linux/arm64` are supported. BuildKit supplies `TARGETARCH`
-for binary downloads; Node.js, Python packages, GDAL compilation, and apt packages
-use the target architecture. All image tool versions remain pinned at their
-existing versions, including Nextcloud 3.11.0-1.1build4 and OpenJDK 17.
+for binary downloads; Node.js, Python packages, GDAL compilation, and Fedora RPM packages
+use the target architecture. code-server is upgraded to 4.144.0. Nextcloud follows Fedora 44 packages;
+Java remains OpenJDK 17, supplied by Eclipse Temurin. Other explicitly pinned
+tool versions are retained.
 
 Use a native Docker host for the selected platform when possible. Cross-platform
 builds and tests require QEMU/binfmt registration (for example,
@@ -73,6 +74,35 @@ creates `/workspace/drive` as a symlink to `/home/jovyan/drive` inside the
 container. With the project directory mounted at `/workspace`, this symlink
 also appears in the project directory on the host; it is generated runtime
 state and should not be committed.
+
+## Mastering Application Package compatibility
+
+The migration preserves `jovyan` (1001:100), `HOME=/workspace`, passwordless sudo,
+Python 3.12, Conda, Bash/Python notebook kernels, NVM, all existing PDE tools,
+and the ApplicationHub proxy/Nextcloud entrypoint. The workshop Helm chart can
+continue running its init container and direct code-server command unchanged.
+Workspace volumes must be writable by UID 1001 or GID 100 (`fsGroup: 100`).
+
+Run the integration check with disposable Docker volumes and LocalStack:
+
+```bash
+bash ci/test-mastering.sh eoepca/pde-code-server:fedora-arm64 linux/arm64
+# Test the current local workshop files instead of the checked-in snapshot:
+bash ci/test-mastering.sh eoepca/pde-code-server:fedora-arm64 linux/arm64 \
+  /Users/mlongobardo/projects/dev-platform-eoap/mastering-app-package/files
+```
+
+This executes the unmodified `init.sh`, verifies all four extensions, geospatial
+Python imports, pip dependencies, the kernel interpreter, interactive venv
+activation, downloaded kubectl, and S3 bucket creation, then starts code-server
+using the chart's command and XDG settings. It needs network access for GitHub,
+Open VSX, PyPI, Kubernetes downloads, and the LocalStack image. It does not test
+Kubernetes scheduling, a real Nextcloud service, or browser extension activation.
+CI runs this check on both architectures before publishing.
+
+The fixture in `ci/fixtures/mastering-app-package` was copied from the local
+workshop checkout at commit `49bb077b8753bddfb215827a04a3cf61d265811b`;
+refresh it when the workshop initialization changes.
 
 ## Installed Tooling
 
@@ -136,25 +166,28 @@ The UML viewer's bundled dependencies are tested as shipped, including its nativ
 Python modules; CI does not patch the VSIX or skip rendering on ARM64. A future
 upstream incompatibility will fail the corresponding platform check.
 
-This image is based on the Jupyter Python 3.12 base notebook image (currently
-Ubuntu 24.04) and provides a curated set of development, Kubernetes, and
-Earth-Observation workflow tools.
+This image uses Fedora 44, following the Fedora recipe in coder/code-server
+with the PDE runtime contract preserved. The complete Python 3.12 Conda/Jupyter
+environment is copied from the Jupyter base notebook image, so notebook tools
+and `/opt/conda` paths remain available. Fedora supplies the OS and system tools.
 
-All non-distro binaries are pinned to explicit versions to ensure reproducibility.
+Standalone tool releases are pinned. Fedora packages and the Python 3.12 Jupyter
+and Java 17 Temurin source images receive updates; builds are not fully locked.
 
 ### Base System
 
-- OS: Ubuntu 24.04 (from the current Jupyter base image)
-- Python: 3.12.11
+- OS: Fedora 44
+- Python: 3.12 (Jupyter/Conda toolchain)
 - NVM: v0.40.3, installed at `/opt/nvm`
 - Node.js: v22.15.0, installed via NVM and available on `PATH`
 - npm: bundled with Node.js 22
-- Java: OpenJDK 17 JDK (headless), required and installed from distro packages
+- Java: Eclipse Temurin OpenJDK 17 JDK, at `/opt/java/openjdk`
 
 Installed system utilities:
 
 - curl, wget
-- git
+- git, git-lfs
+- htop, openssh-clients, zsh, dumb-init
 - sudo
 - nano
 - net-tools
@@ -165,7 +198,7 @@ Installed system utilities:
 
 ### code-server
 
-- code-server: 4.138.0
+- code-server: 4.144.0
 
 Installed from official release tarball and available in PATH:
 

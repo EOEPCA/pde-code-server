@@ -1,11 +1,28 @@
-FROM quay.io/jupyter/base-notebook:python-3.12
+# Retain the complete Python/Jupyter/Conda toolchain while moving the OS to Fedora.
+FROM quay.io/jupyter/base-notebook:python-3.12 AS python-runtime
+FROM eclipse-temurin:17-jdk AS java-runtime
+FROM fedora:44
+
+COPY --from=java-runtime /opt/java/openjdk /opt/java/openjdk
+COPY --from=python-runtime /opt/conda /opt/conda
+COPY --from=python-runtime /usr/local/bin/start*.py /usr/local/bin/
+COPY --from=python-runtime /usr/local/bin/start*.sh /usr/local/bin/
+COPY --from=python-runtime /usr/local/bin/fix-permissions /usr/local/bin/
+ENV JAVA_HOME=/opt/java/openjdk \
+    CONDA_DIR=/opt/conda \
+    NB_USER=jovyan \
+    NB_UID=1001 \
+    NB_GID=100 \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    SHELL=/bin/bash \
+    PATH=/opt/java/openjdk/bin:/opt/conda/bin:${PATH}
 
 # BuildKit supplies amd64 or arm64 for each target platform.
 ARG TARGETARCH
 RUN case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; esac
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    USER=jovyan \
+ENV USER=jovyan \
     UID=1001 \
     GID=100 \
     HOME=/workspace
@@ -15,25 +32,18 @@ USER root
 # -------------------------------------------------------------------
 # Base system packages (runtime only)
 # -------------------------------------------------------------------
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-    git \
-    nano \
-    net-tools \
-    sudo \
-    wget \
-    graphviz \
-    file \
-    tree \
-    podman \
-    skopeo \
-    openjdk-17-jdk-headless \
-    nextcloud-desktop-cmd=3.11.0-1.1build4 \
-    && rm -rf /var/lib/apt/lists/*
+RUN dnf upgrade -y && dnf install -y \
+    ca-certificates curl git git-lfs nano net-tools sudo wget graphviz file tree \
+    podman skopeo fontconfig freetype nextcloud-client \
+    htop openssh-clients procps-ng zsh dumb-init glibc-langpack-en \
+    findutils which tar gzip bzip2 unzip hostname shadow-utils \
+    && dnf clean all && rm -rf /var/cache/dnf
 
-RUN usermod -u 1001 ${USER} && \
-    echo "${USER} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USER}
+RUN groupadd -g 100 users 2>/dev/null || getent group 100
+RUN useradd -m -u 1001 -g 100 -s /bin/bash jovyan && \
+    echo "jovyan ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jovyan && \
+    chmod 440 /etc/sudoers.d/jovyan && \
+    git lfs install --system
 
 # -------------------------------------------------------------------
 # NVM and Node.js
@@ -53,12 +63,12 @@ RUN mkdir -p "${NVM_DIR}" && \
 ENV PATH="${NVM_DIR}/versions/node/v${NODE_VERSION}/bin:${PATH}"
 
 RUN printf '\nexport NVM_DIR="/opt/nvm"\n[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\n' \
-    >> /etc/bash.bashrc
+    >> /etc/bashrc
 
 # -------------------------------------------------------------------
 # code-server
 # -------------------------------------------------------------------
-ARG CODE_RELEASE=4.138.0
+ARG CODE_RELEASE=4.144.0
 RUN mkdir -p /opt/code-server && \
     curl -fsSL \
       "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-${TARGETARCH}.tar.gz" \
@@ -155,22 +165,19 @@ RUN python -m venv /opt/hatch-venv && \
 ARG TRIVY_VERSION=0.74.0
 RUN case "${TARGETARCH}" in amd64) TRIVY_ARCH=64bit ;; arm64) TRIVY_ARCH=ARM64 ;; esac && \
     curl -fsSL \
-    https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.deb \
-    -o /tmp/trivy.deb && \
-    dpkg -i /tmp/trivy.deb && \
-    rm /tmp/trivy.deb
+    https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz \
+    | tar -xz -C /usr/local/bin trivy
 
 # -------------------------------------------------------------------
 # GDAL
 # -------------------------------------------------------------------
 ARG GDAL_VER=3.12.1
-RUN apt-get update && apt-get install -y \
-    cmake g++ ninja-build xz-utils libproj-dev proj-data proj-bin && \
-    rm -rf /var/lib/apt/lists/* && \
-    set -e && \
+RUN dnf install -y \
+    cmake gcc-c++ ninja-build xz proj-devel proj-data proj && \
+    dnf clean all && rm -rf /var/cache/dnf && \
     cd /tmp && \
-    curl -fsSL -o gdal-${GDAL_VER}.tar.xz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.xz \
-      || curl -fsSL -o gdal-${GDAL_VER}.tar.gz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.gz && \
+    (curl -fsSL -o gdal-${GDAL_VER}.tar.xz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.xz \
+      || { rm -f gdal-${GDAL_VER}.tar.xz; curl -fsSL -o gdal-${GDAL_VER}.tar.gz https://download.osgeo.org/gdal/${GDAL_VER}/gdal-${GDAL_VER}.tar.gz; }) && \
     if [ -f gdal-${GDAL_VER}.tar.xz ]; then \
         tar -xJf gdal-${GDAL_VER}.tar.xz; \
     else \
@@ -180,9 +187,12 @@ RUN apt-get update && apt-get install -y \
     mkdir build && cd build && \
     cmake -G Ninja ../ \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX=/usr/local && \
+      -DCMAKE_INSTALL_PREFIX=/usr/local \
+      -DCMAKE_INSTALL_LIBDIR=lib && \
     cmake --build . -- -j"$(nproc)" && \
     cmake --install . && \
+    echo /usr/local/lib > /etc/ld.so.conf.d/gdal.conf && \
+    echo /usr/local/lib64 >> /etc/ld.so.conf.d/gdal.conf && \
     ldconfig && \
     cd / && rm -rf /tmp/gdal-${GDAL_VER}* && \
     gdal-config --version

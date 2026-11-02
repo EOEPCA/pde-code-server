@@ -17,7 +17,9 @@ docker run --rm --platform "$platform" --entrypoint bash "$image" -ec '
   test "$UID" = 1001
   test "$(id -un)" = jovyan
   test "$(id -g)" = 100
-  test "$(dpkg --print-architecture)" = "$1"
+  . /etc/os-release
+  test "$ID" = fedora
+  test "$VERSION_ID" = 44
   code-server --version
   node --version
   kubectl version --client=true
@@ -29,6 +31,7 @@ docker run --rm --platform "$platform" --entrypoint bash "$image" -ec '
   hatch --version
   trivy --version
   java -version
+  java -XshowSettings:properties -version 2>&1 | grep -Eq "java.specification.version = 17$"
   dot -V
   gdalinfo --version
   calrissian --version
@@ -38,6 +41,10 @@ docker run --rm --platform "$platform" --entrypoint bash "$image" -ec '
   skopeo --version
   uv --version
   QT_QPA_PLATFORM=offscreen nextcloudcmd --version
+  QT_QPA_PLATFORM=offscreen nextcloudcmd --help > /tmp/nextcloud-help
+  for option in --user --password --exclude --path; do
+    grep -Fq -- "$option" /tmp/nextcloud-help
+  done
   python3 -m pip check
   /opt/calrissian-venv/bin/python -m pip check
   python3 -c "import cwl_loader, cwl2puml"

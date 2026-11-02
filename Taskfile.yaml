@@ -33,3 +33,8 @@ tasks:
     cmds:
       - python3 ci/test-extensions.py download {{.VSIX_DIR | shellQuote}}
       - bash ci/test-image.sh {{.IMAGE | shellQuote}} {{.PLATFORM | shellQuote}} {{.VSIX_DIR | shellQuote}}
+
+  test:mastering:
+    desc: Run the workshop init script and chart startup against disposable LocalStack and storage
+    cmds:
+      - bash ci/test-mastering.sh {{.IMAGE | shellQuote}} {{.PLATFORM | shellQuote}}
