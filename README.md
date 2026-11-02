@@ -53,7 +53,8 @@ Choose distinct tags to keep both images available.
 
 ### Running Locally
 
-The proxy uses OAuth by default for ApplicationHub deployments. For standalone
+The proxy uses `/healthz` for code-server readiness with a 120-second cold-start
+window. It uses OAuth by default for ApplicationHub deployments. For standalone
 local use, disable proxy authentication and bind the service to localhost:
 
 ```bash
@@ -103,6 +104,18 @@ CI runs this check on both architectures before publishing.
 The fixture in `ci/fixtures/mastering-app-package` was copied from the local
 workshop checkout at commit `49bb077b8753bddfb215827a04a3cf61d265811b`;
 refresh it when the workshop initialization changes.
+
+Local validation on 2026-11-02 passed on ARM64: tool and dependency checks,
+all three released EOAP extensions (including UML rendering), the current local
+workshop `init.sh`, and both direct and proxied startup. AMD64 is covered by the
+native CI job but was not built or executed locally during this migration.
+The tested local image is `eoepca/pde-code-server:fedora-arm64`.
+
+To rerun only the proxy/Nextcloud-symlink startup check:
+
+```bash
+bash ci/test-startup.sh eoepca/pde-code-server:fedora-arm64 linux/arm64
+```
 
 ## Installed Tooling
 

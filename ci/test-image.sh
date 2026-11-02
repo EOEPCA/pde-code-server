@@ -75,28 +75,4 @@ docker run --rm --platform "$platform" --entrypoint python3 \
   -v "$repo_dir/ci:/opt/extension-ci:ro" -v "$vsix_dir:/opt/extension-vsix:ro" \
   "$image" /opt/extension-ci/test-extensions.py test /opt/extension-vsix
 
-container=""
-# Invoked by the EXIT trap.
-# shellcheck disable=SC2329
-cleanup() {
-  if [[ -n "$container" ]]; then
-    docker logs "$container" || true
-    docker rm -f "$container" >/dev/null
-  fi
-}
-trap cleanup EXIT
-container="$(docker run -d --platform "$platform" \
-  -e JHSINGLE_NATIVE_PROXY_AUTHTYPE=none "$image")"
-deadline=$((SECONDS + 180))
-while ((SECONDS < deadline)); do
-  if docker exec "$container" curl -fsS --max-time 5 http://127.0.0.1:8888/ >/dev/null; then
-    docker exec "$container" test -L /workspace/drive
-    docker exec "$container" test "$(docker exec "$container" readlink /workspace/drive)" = /home/jovyan/drive
-    echo "Image, extensions, and entrypoint checks passed on $platform"
-    exit 0
-  fi
-  [[ "$(docker inspect --format '{{.State.Running}}' "$container")" == true ]] || exit 1
-  sleep 2
-done
-echo "Entrypoint did not become ready within 180 seconds" >&2
-exit 1
+bash "$repo_dir/ci/test-startup.sh" "$image" "$platform"

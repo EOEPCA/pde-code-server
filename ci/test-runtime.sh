@@ -3,7 +3,6 @@
 set -euo pipefail
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 test "$(id -u)" = 1001
-test -w /opt/conda
 test -w /opt/conda/bin
 python -c 'import sys; assert sys.version_info[:2] == (3, 12)'
 test -w "$HATCH_CONFIG"

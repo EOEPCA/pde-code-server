@@ -47,4 +47,5 @@ if [ -z "$CODE_SERVER_WS" ]; then
     CODE_SERVER_WS="/workspace"
 fi
 
-jhsingle-native-proxy --authtype "$auth_type" --port "$port" --destport "$destport" code-server {--}auth none {--}bind-addr "0.0.0.0:$destport" {--}user-data-dir /workspace "$CODE_SERVER_WS"
+# Probe the lightweight endpoint: loading the editor page can outlast cold-start readiness.
+jhsingle-native-proxy --ready-check-path /healthz --ready-timeout 120 --authtype "$auth_type" --port "$port" --destport "$destport" code-server {--}auth none {--}bind-addr "0.0.0.0:$destport" {--}user-data-dir /workspace "$CODE_SERVER_WS"

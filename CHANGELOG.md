@@ -8,6 +8,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Migrate the runtime OS to Fedora 44 and code-server to 4.144.0, retaining
   the Python 3.12 Conda/Jupyter environment and PDE tools, identity and paths.
+- Probe code-server `/healthz` with a 120-second readiness window so cold
+  editor startup does not stall the native proxy.
 - Retain Java 17 through Temurin and use Fedora's Nextcloud client packages.
 - Add an integration gate on both architectures for the mastering-app-package
   init script, extensions, Python environment, S3 setup and direct editor startup.
