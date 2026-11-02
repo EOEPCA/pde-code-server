@@ -162,7 +162,7 @@ RUN python -m venv /opt/hatch-venv && \
 # -------------------------------------------------------------------
 # trivy
 # -------------------------------------------------------------------
-ARG TRIVY_VERSION=0.74.0
+ARG TRIVY_VERSION=0.76.1
 RUN case "${TARGETARCH}" in amd64) TRIVY_ARCH=64bit ;; arm64) TRIVY_ARCH=ARM64 ;; esac && \
     curl -fsSL \
     https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${TRIVY_ARCH}.tar.gz \

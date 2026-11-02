@@ -329,7 +329,7 @@ ghcr.io/<repository-owner>/pde-code-server
 
 The registry owner corresponds to the GitHub repository owner (user or organization).
 
-Images are built with Buildx. Each platform is tested, scanned with Trivy 0.74.0,
+Images are built with Buildx. Each platform is tested, scanned with Trivy 0.76.1,
 and given its own SPDX JSON SBOM. After both platform jobs succeed, CI publishes
 the tested images and attaches each SBOM with ORAS to that architecture image's
 exact registry digest. It then publishes a combined multi-platform manifest under

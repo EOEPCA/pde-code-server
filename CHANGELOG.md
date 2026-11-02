@@ -4,17 +4,8 @@ Notable project changes are recorded here for users and contributors.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
 
-- Migrate the runtime OS to Fedora 44 and code-server to 4.144.0, retaining
-  the Python 3.12 Conda/Jupyter environment and PDE tools, identity and paths.
-- Probe code-server `/healthz` with a 120-second readiness window so cold
-  editor startup does not stall the native proxy.
-- Retain Java 17 through Temurin and use Fedora's Nextcloud client packages.
-- Add an integration gate on both architectures for the mastering-app-package
-  init script, extensions, Python environment, S3 setup and direct editor startup.
-
-## [1.4.0] - 2026-10-30
+## [1.4.0] - 2026-11-02
 
 ### Added
 - AMD64 and ARM64 binary downloads and native CI build/test jobs, with a combined
@@ -46,7 +37,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Use Trivy 0.74.0 for CI scans, matching the pinned image scanner; both platform
   assets are available, while the previous 0.50.2 binary asset URLs returned 404.
 ### Fixed
-
+- Migrate the runtime OS to Fedora 44 and code-server to 4.144.0, retaining
+  the Python 3.12 Conda/Jupyter environment and PDE tools, identity and paths.
+- Probe code-server `/healthz` with a 120-second readiness window so cold
+  editor startup does not stall the native proxy.
+- Retain Java 17 through Temurin and use Fedora's Nextcloud client packages.
+- Add an integration gate on both architectures for the mastering-app-package
+  init script, extensions, Python environment, S3 setup and direct editor startup.
+- Trivy Transition to 0.76.1
 - Include the C++ compiler and XZ utilities required for the GDAL source build.
 - Validate proxy authentication modes and quote entrypoint arguments.
 - Install Calrissian from commit `a95d87dd213d51b11faea7c6def4ced46d466a4a`
