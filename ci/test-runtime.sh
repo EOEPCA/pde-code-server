@@ -69,4 +69,5 @@ for flag in --dask-gateway-url --dask-script-configmap; do
   grep -Fq -- "$flag" "$fixture_dir/calrissian-help.txt"
 done
 bash "$script_dir/test-yq.sh"
+bash "$script_dir/test-gdal.sh"
 echo 'Offline Hatch, Calrissian package, and YAML/TOML checks passed (no Kubernetes Dask execution tested).'

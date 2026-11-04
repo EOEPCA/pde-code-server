@@ -103,6 +103,8 @@ jobs:
         run: bash ci/test-image.sh pde-extension-test:ci "$PLATFORM" "$PWD/extension-vsix"
       - name: Test mastering-app-package initialization and chart startup
         run: bash ci/test-mastering.sh pde-extension-test:ci linux/${{ matrix.arch }}
+      - name: Test nested rootless Podman pull, build, and execution
+        run: bash ci/test-podman.sh pde-extension-test:ci linux/${{ matrix.arch }}
       - name: Save tested image
         run: docker save pde-extension-test:ci -o image.tar
       - name: Install pinned scan tooling

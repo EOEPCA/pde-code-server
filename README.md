@@ -76,6 +76,49 @@ container. With the project directory mounted at `/workspace`, this symlink
 also appears in the project directory on the host; it is generated runtime
 state and should not be committed.
 
+## Building containers with rootless Podman
+
+The image runs Podman as `jovyan` (UID 1001, GID 100). It provides subordinate
+UID/GID ranges in `/etc/subuid` and `/etc/subgid`, and root-owned setuid
+`newuidmap`/`newgidmap` helpers. The outer container must permit nested user
+namespaces and helper privilege escalation. The APEx privileged pod setup can
+provide this; overriding the user to UID 1000 does not match the image account.
+Keep the main container and init-container identity aligned with UID 1001.
+
+For an existing Fedora image affected by missing helper privileges, run these
+commands in the code-server terminal **as jovyan (UID 1001)**:
+
+```bash
+sudo chown root:root /usr/bin/newuidmap /usr/bin/newgidmap
+sudo chmod 4755 /usr/bin/newuidmap /usr/bin/newgidmap
+podman system migrate
+podman unshare cat /proc/self/uid_map /proc/self/gid_map
+podman pull docker.io/library/python:3.12-slim
+```
+
+`podman system migrate` stops that user's running Podman containers and replaces
+the cached user namespace. Each mapping should include the user's own ID plus
+at least 65,536 subordinate IDs. If the ranges are absent or the actual UID is
+1000, correct the deployment identity/ranges first. If helpers still report
+`Operation not permitted`, inspect the outer pod's privilege-escalation and
+user-namespace restrictions. Do not use `podman system reset` for this repair;
+it deletes container storage. The terminal repair lasts only until the outer
+container is replaced; rebuild the image for the persistent fix.
+
+Keep Podman storage on the mounted workspace volume. Nested overlay storage in
+Docker's writable container layer produced an `exec ... Invalid argument` error
+in local testing; an independent workspace volume worked with the default driver.
+The regression test uses an anonymous workspace volume and a privileged outer
+container, then pulls Python slim, builds a layer with UID 1234/GID 42 ownership,
+and runs it as that non-root user. CI runs it on both architectures:
+
+```bash
+task test:podman IMAGE=eoepca/pde-code-server:podman-fix-arm64 PLATFORM=linux/arm64
+```
+
+This test passed locally on ARM64 on 2026-11-04 using the prior validated image
+plus the helper-permissions fix. AMD64 execution remains covered by CI.
+
 ## Mastering Application Package compatibility
 
 The migration preserves `jovyan` (1001:100), `HOME=/workspace`, passwordless sudo,
@@ -303,6 +346,19 @@ Installed via pip (Python 3.12):
   of the `/workspace` project mount. Project environment creation, project
   dependencies, plugins, or additional Python versions may still need network
   access; the offline smoke check only reads local project metadata.
+
+### GDAL build cleanup
+
+GDAL is compiled from source, then CMake, GCC/G++, Ninja, PROJ development
+headers, and their unused dependencies are removed in the same image layer.
+The ARM64 cleanup test removed 53 RPMs (about 348 MiB of installed files).
+Compressed image savings vary. PROJ tools and coordinate grids, `xz`, GDAL's
+linked runtime libraries, and GDAL's own headers/`gdal-config` remain installed.
+CI checks compressed GeoTIFF creation and EPSG reprojection after cleanup.
+
+Compilers are no longer preinstalled for source builds inside the development
+environment. If a project needs them, install the required development packages
+with `sudo dnf install gcc-c++ cmake ninja-build proj-devel`.
 
 ### User & Runtime Environment
 

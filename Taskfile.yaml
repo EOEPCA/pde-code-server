@@ -38,3 +38,8 @@ tasks:
     desc: Run the workshop init script and chart startup against disposable LocalStack and storage
     cmds:
       - bash ci/test-mastering.sh {{.IMAGE | shellQuote}} {{.PLATFORM | shellQuote}}
+
+  test:podman:
+    desc: Test rootless Podman builds inside a disposable privileged container and workspace volume
+    cmds:
+      - bash ci/test-podman.sh {{.IMAGE | shellQuote}} {{.PLATFORM | shellQuote}}

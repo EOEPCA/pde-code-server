@@ -5,6 +5,17 @@ Notable project changes are recorded here for users and contributors.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## Unreleased
+
+- Remove GDAL's temporary build toolchain and unused development dependencies
+  in the build layer, retaining PROJ/data and linked runtime libraries. Add a
+  compressed-raster and reprojection regression check.
+
+- Give rootless Podman's UID/GID mapping helpers the setuid permissions needed
+  to unpack images containing additional user/group IDs, including Python slim.
+- Test actual nested rootless Podman builds and non-root execution on both CI
+  architectures, using a disposable workspace volume.
+
 ## [1.4.0] - 2026-11-02
 
 ### Added

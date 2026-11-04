@@ -172,7 +172,10 @@ RUN case "${TARGETARCH}" in amd64) TRIVY_ARCH=64bit ;; arm64) TRIVY_ARCH=ARM64 ;
 # GDAL
 # -------------------------------------------------------------------
 ARG GDAL_VER=3.12.1
-RUN dnf install -y \
+# Keep runtime RPMs explicitly: the source-installed GDAL has no RPM dependency
+# record, and removing proj-devel would otherwise also autoremove PROJ/data.
+# Install and remove the build toolchain in this same layer to reclaim its size.
+RUN set -eu && set -o pipefail && dnf install -y \
     cmake gcc-c++ ninja-build xz proj-devel proj-data proj && \
     dnf clean all && rm -rf /var/cache/dnf && \
     cd /tmp && \
@@ -195,7 +198,15 @@ RUN dnf install -y \
     echo /usr/local/lib64 >> /etc/ld.so.conf.d/gdal.conf && \
     ldconfig && \
     cd / && rm -rf /tmp/gdal-${GDAL_VER}* && \
-    gdal-config --version
+    gdal-config --version && \
+    ldd /usr/local/lib/libgdal.so > /tmp/gdal-runtime-libs && \
+    ! grep -q 'not found' /tmp/gdal-runtime-libs && \
+    dnf -y mark user proj proj-data xz && \
+    awk '/=> \// {print $3}' /tmp/gdal-runtime-libs \
+      | xargs -r rpm -qf --qf '%{NAME}\n' | sort -u | xargs -r dnf -y mark user && \
+    dnf remove -y cmake gcc-c++ ninja-build proj-devel && \
+    dnf clean all && rm -rf /var/cache/dnf /tmp/gdal-runtime-libs && \
+    gdalinfo --version
 
 # -------------------------------------------------------------------
 # tomlq requires the Python yq package, whose console launcher shadows the
@@ -215,6 +226,13 @@ RUN chmod 755 /usr/local/bin/nc-sync
 
 COPY entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
+
+# Fedora's shadow-utils helpers are installed without setuid/file capabilities.
+# Rootless Podman needs these narrowly scoped helpers to apply jovyan's ranges.
+RUN test -x /usr/bin/newuidmap && test -x /usr/bin/newgidmap && \
+    grep -q '^jovyan:' /etc/subuid && grep -q '^jovyan:' /etc/subgid && \
+    chown root:root /usr/bin/newuidmap /usr/bin/newgidmap && \
+    chmod 4755 /usr/bin/newuidmap /usr/bin/newgidmap
 
 USER ${USER}
 
