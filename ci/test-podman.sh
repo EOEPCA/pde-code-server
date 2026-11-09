@@ -7,7 +7,7 @@ image="${1:?image required}"
 platform="${2:?platform required}"
 docker run --rm -i --privileged --platform "$platform" -v /workspace --entrypoint bash "$image" -se <<'SCRIPT'
 set -euo pipefail
-test "$(id -u)" = 1001
+test "$(id -u)" = 1000
 test -u /usr/bin/newuidmap
 test -u /usr/bin/newgidmap
 # Require subordinate ranges, not just a single-ID fallback namespace.

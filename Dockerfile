@@ -11,7 +11,7 @@ COPY --from=python-runtime /usr/local/bin/fix-permissions /usr/local/bin/
 ENV JAVA_HOME=/opt/java/openjdk \
     CONDA_DIR=/opt/conda \
     NB_USER=jovyan \
-    NB_UID=1001 \
+    NB_UID=1000 \
     NB_GID=100 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
@@ -23,7 +23,7 @@ ARG TARGETARCH
 RUN case "${TARGETARCH}" in amd64|arm64) ;; *) echo "Unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; esac
 
 ENV USER=jovyan \
-    UID=1001 \
+    UID=1000 \
     GID=100 \
     HOME=/workspace
 
@@ -40,7 +40,10 @@ RUN dnf upgrade -y && dnf install -y \
     && dnf clean all && rm -rf /var/cache/dnf
 
 RUN groupadd -g 100 users 2>/dev/null || getent group 100
-RUN useradd -m -u 1001 -g 100 -s /bin/bash jovyan && \
+RUN useradd -m -u 1000 -g 100 -s /bin/bash jovyan && \
+    grep -q '^jovyan:' /etc/subuid || echo 'jovyan:100000:65536' >> /etc/subuid && \
+    grep -q '^jovyan:' /etc/subgid || echo 'jovyan:100000:65536' >> /etc/subgid && \
+    mkdir -p /run/user/1000 && chown 1000:100 /run/user/1000 && chmod 700 /run/user/1000 && \
     echo "jovyan ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/jovyan && \
     chmod 440 /etc/sudoers.d/jovyan && \
     git lfs install --system
