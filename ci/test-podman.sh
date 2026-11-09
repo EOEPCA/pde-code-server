@@ -2,10 +2,11 @@
 # Exercise rootless Podman inside a disposable privileged outer container.
 # An anonymous workspace volume mirrors a PVC and avoids overlay-on-overlay.
 # Docker removes that volume with the container; no host Docker socket is mounted.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "ERROR %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-$0}" "$LINENO" "$BASH_COMMAND" "$?" >&2' ERR
 image="${1:?image required}"
 platform="${2:?platform required}"
-docker run --rm -i --privileged --platform "$platform" -v /workspace --entrypoint bash "$image" -se <<'SCRIPT'
+docker run --rm -i --privileged --platform "$platform" -v /workspace --entrypoint bash "$image" -sex <<'SCRIPT'
 set -euo pipefail
 test "$(id -u)" = 1000
 test -u /usr/bin/newuidmap

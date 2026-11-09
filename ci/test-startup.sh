@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "ERROR %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-$0}" "$LINENO" "$BASH_COMMAND" "$?" >&2' ERR
 image="${1:?image required}"
 platform="${2:?platform required}"
 container=""

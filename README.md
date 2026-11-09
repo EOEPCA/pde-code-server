@@ -78,15 +78,15 @@ state and should not be committed.
 
 ## Building containers with rootless Podman
 
-The image runs Podman as `jovyan` (UID 1001, GID 100). It provides subordinate
+The image runs Podman as `jovyan` (UID 1000, GID 100). It provides subordinate
 UID/GID ranges in `/etc/subuid` and `/etc/subgid`, and root-owned setuid
 `newuidmap`/`newgidmap` helpers. The outer container must permit nested user
 namespaces and helper privilege escalation. The APEx privileged pod setup can
-provide this; overriding the user to UID 1000 does not match the image account.
-Keep the main container and init-container identity aligned with UID 1001.
+provide this; the runtime user must match the image account.
+Keep the main container and init-container identity aligned with UID 1000.
 
 For an existing Fedora image affected by missing helper privileges, run these
-commands in the code-server terminal **as jovyan (UID 1001)**:
+commands in the code-server terminal **as jovyan (UID 1000)**:
 
 ```bash
 sudo chown root:root /usr/bin/newuidmap /usr/bin/newgidmap
@@ -98,7 +98,7 @@ podman pull docker.io/library/python:3.12-slim
 
 `podman system migrate` stops that user's running Podman containers and replaces
 the cached user namespace. Each mapping should include the user's own ID plus
-at least 65,536 subordinate IDs. If the ranges are absent or the actual UID is
+at least 65,536 subordinate IDs. If the ranges are absent or the actual UID differs from
 1000, correct the deployment identity/ranges first. If helpers still report
 `Operation not permitted`, inspect the outer pod's privilege-escalation and
 user-namespace restrictions. Do not use `podman system reset` for this repair;
@@ -121,11 +121,11 @@ plus the helper-permissions fix. AMD64 execution remains covered by CI.
 
 ## Mastering Application Package compatibility
 
-The migration preserves `jovyan` (1001:100), `HOME=/workspace`, passwordless sudo,
+The image uses `jovyan` (1000:100), `HOME=/workspace`, passwordless sudo,
 Python 3.12, Conda, Bash/Python notebook kernels, NVM, all existing PDE tools,
 and the ApplicationHub proxy/Nextcloud entrypoint. The workshop Helm chart can
 continue running its init container and direct code-server command unchanged.
-Workspace volumes must be writable by UID 1001 or GID 100 (`fsGroup: 100`).
+Workspace volumes must be writable by UID 1000 or GID 100 (`fsGroup: 100`).
 
 Run the integration check with disposable Docker volumes and LocalStack:
 
@@ -174,7 +174,7 @@ loads its CLI, and renders the UML viewer's sample through its installed Python
 bridge and bundled Java renderer for every available diagram type.
 
 Both architectures use the same downloaded VSIXs. Tool execution, ELF binary architecture, image platform,
-user identity (UID 1001 / GID 100), Calrissian isolation, Nextcloud symlink, and
+user identity (UID 1000 / GID 100), Calrissian isolation, Nextcloud symlink, and
 standalone entrypoint startup are checked on each platform.
 
 Failures block image publication. The tested release tags and download URLs are
@@ -363,7 +363,7 @@ with `sudo dnf install gcc-c++ cmake ninja-build proj-devel`.
 ### User & Runtime Environment
 
 - User: jovyan
-- UID / GID: 1001 / 100
+- UID / GID: 1000 / 100
 - Home / Workdir: /workspace
 - Passwordless sudo enabled for the user.
 

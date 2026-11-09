@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Exercise GDAL's shared libraries, raster codecs, and PROJ data after cleanup.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "ERROR %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-$0}" "$LINENO" "$BASH_COMMAND" "$?" >&2' ERR
 fixture_dir="$(mktemp -d)"
 trap 'rm -rf "$fixture_dir"' EXIT
 gdal-config --version

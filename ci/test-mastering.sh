@@ -1,13 +1,22 @@
 #!/usr/bin/env bash
 # Execute the unmodified workshop init script against disposable storage and S3.
-set -euo pipefail
+set -Eeuo pipefail
+trap 'printf "ERROR %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-$0}" "$LINENO" "$BASH_COMMAND" "$?" >&2' ERR
 image="${1:?image required}"
 platform="${2:?platform required}"
 repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
 fixtures="${3:-$repo_dir/ci/fixtures/mastering-app-package}"
 fixtures="$(cd "$fixtures" && pwd)"
 name="pde-mastering-$$"
+# Invoked by the EXIT trap.
+# shellcheck disable=SC2329
 cleanup() {
+  status=$?
+  if ((status != 0)); then
+    docker logs "$name-init" || true
+    docker logs "$name-server" || true
+    docker logs "$name-s3" || true
+  fi
   docker rm -f "$name-init" "$name-server" "$name-s3" >/dev/null 2>&1 || true
   docker volume rm "$name-workspace" >/dev/null 2>&1 || true
   docker network rm "$name" >/dev/null 2>&1 || true
@@ -26,10 +35,10 @@ done
 [[ "$ready" == true ]] || { docker logs "$name-s3"; exit 1; }
 # Match a PVC made writable through the chart's fsGroup=100.
 docker run --rm --platform "$platform" --user root --entrypoint bash \
-  -v "$name-workspace:/workspace" "$image" -ec 'chown 1001:100 /workspace'
+  -v "$name-workspace:/workspace" "$image" -exc 'chown 1000:100 /workspace'
 docker run --name "$name-init" --platform "$platform" --network "$name" \
   --entrypoint bash -v "$name-workspace:/workspace" \
-  -v "$fixtures:/opt/init:ro" "$image" -ec '
+  -v "$fixtures:/opt/init:ro" "$image" -exc '
     bash /opt/init/init.sh
     test -d /workspace/mastering-app-package/.git
     test "$(readlink /workspace/extensions)" = /workspace/.local/share/code-server/extensions
@@ -53,10 +62,11 @@ docker run -d --name "$name-server" --platform "$platform" --network "$name" \
   --auth none --bind-addr 0.0.0.0:8080 --user-data-dir /workspace \
   /workspace/mastering-app-package >/dev/null
 for ((i=0; i<90; i++)); do
-  if docker exec "$name-server" curl -fsS http://127.0.0.1:8080/ >/dev/null; then
+  if docker exec "$name-server" curl -fsS --max-time 5 http://127.0.0.1:8080/ >/dev/null; then
     echo "Mastering init, Python imports, extensions, S3, kernel, shell and chart startup passed ($platform)"
     exit 0
   fi
+  [[ "$(docker inspect --format '{{.State.Running}}' "$name-server")" == true ]] || exit 1
   sleep 2
 done
 docker logs "$name-server"
