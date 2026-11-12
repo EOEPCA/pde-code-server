@@ -1,0 +1,247 @@
+# DNF5 policy, applied before every stage's first DNF transaction.
+# Freeze selected upstream major versions; allow minor/patch and RPM release fixes.
+# Keep epochs explicit: they take precedence over versions in RPM comparisons.
+# Fedora 44 baselines: https://src.fedoraproject.org/rpms/<name>/blob/f44/f/<name>.spec
+# Format: https://dnf5.readthedocs.io/en/latest/commands/versionlock.8.html
+version = "1.0"
+
+[[packages]]
+name = "git"
+comment = "Keep git on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:3"
+
+[[packages]]
+name = "git-core*"
+comment = "Keep git on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:3"
+
+[[packages]]
+name = "git-lfs"
+comment = "Keep git-lfs on 3.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:3"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:4"
+
+[[packages]]
+name = "nextcloud-client"
+comment = "Keep nextcloud-client on 35.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:35"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:36"
+
+[[packages]]
+name = "nextcloud-client-*"
+comment = "Keep nextcloud-client on 35.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:35"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:36"
+
+[[packages]]
+name = "skopeo"
+comment = "Keep skopeo on 1.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "1:1"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "1:2"
+
+[[packages]]
+name = "conmon"
+comment = "Keep conmon on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "2:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "2:3"
+
+[[packages]]
+name = "crun"
+comment = "Keep crun on 1.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:1"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:2"
+
+[[packages]]
+name = "netavark"
+comment = "Keep netavark on 1.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "2:1"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "2:2"
+
+[[packages]]
+name = "aardvark-dns"
+comment = "Keep aardvark-dns on 1.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "2:1"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "2:2"
+
+[[packages]]
+name = "slirp4netns"
+comment = "Keep slirp4netns on 1.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:1"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:2"
+
+[[packages]]
+name = "fuse-overlayfs"
+comment = "Keep fuse-overlayfs on 1.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:1"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:2"
+
+[[packages]]
+name = "graphviz"
+comment = "Keep graphviz on 14.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:14"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:15"
+
+[[packages]]
+name = "graphviz-*"
+comment = "Keep graphviz on 14.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:14"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:15"
+
+[[packages]]
+name = "proj"
+comment = "Keep proj on 9.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:9"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:10"
+
+# proj-data has its own version scheme; do not match proj-* here.
+[[packages]]
+name = "proj-devel"
+comment = "Keep proj on 9.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:9"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:10"
+
+[[packages]]
+name = "gpgme"
+comment = "Keep gpgme on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:3"
+
+[[packages]]
+name = "gpgme-*"
+comment = "Keep gpgme on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:3"
+
+[[packages]]
+name = "libseccomp"
+comment = "Keep libseccomp on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:3"
+
+[[packages]]
+name = "libseccomp-*"
+comment = "Keep libseccomp on 2.x; allow Fedora release updates"
+[[packages.conditions]]
+key = "evr"
+comparator = ">="
+value = "0:2"
+[[packages.conditions]]
+key = "evr"
+comparator = "<"
+value = "0:3"
