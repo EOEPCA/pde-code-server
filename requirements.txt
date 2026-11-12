@@ -1,0 +1,10 @@
+# Exact direct dependency pins; update explicitly and run both architecture checks.
+-r requirements-cwl-uml.txt
+awscli==1.46.3
+awscli-plugin-endpoint==0.4
+jhsingle-native-proxy==0.8.3
+bash_kernel==0.10.0
+tomlq==0.1.0
+uv==0.13.7
+cwltool==3.3.20261106131234
+cwltest==2.7.20261106145043

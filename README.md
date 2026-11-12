@@ -227,15 +227,80 @@ with the PDE runtime contract preserved. The complete Python 3.12 Conda/Jupyter
 environment is copied from the Jupyter base notebook image, so notebook tools
 and `/opt/conda` paths remain available. Fedora supplies the OS and system tools.
 
-Standalone tool releases are pinned. Fedora packages and the Python 3.12 Jupyter
-and Java 17 Temurin source images receive updates; builds are not fully locked.
+### Dependency update policy
+
+Versions use `major.minor.patch`. All direct dependencies listed in
+`requirements*.txt` use **exact `==` pins**, including patch versions. Python
+updates require an explicit edit and validation. For selected DNF packages,
+major versions are fixed while minor/patch versions and Fedora RPM release
+updates remain available. Version limits do not guarantee that updates never
+break behavior or contain every security fix.
+
+| Dependencies | Policy |
+| --- | --- |
+| Python runtime tools | Exact versions in `requirements.txt` and `requirements-cwl-uml.txt`; no automatic direct dependency upgrades. |
+| Podman | Exactly **4.9.5**, with build and CI guards requiring **4.9.x**. Update `PODMAN_VERSION` explicitly for another 4.9 patch. |
+| Node.js | Latest **22.x** when its build layer runs; `/opt/node` keeps PATH independent of the resolved version. |
+| Fedora packages | Fedora **44**, with selected application/helper major versions constrained by `dnf-versionlock.toml`; other RPMs follow Fedora updates. |
+| Python/Jupyter and Java base images | Python **3.12** and Java **17** tags; their bundled packages and OS layers may update. |
+| Downloaded standalone tools, NVM, GDAL, Hatch | Existing exact versions retained; update their Dockerfile arguments explicitly and run CI. |
+| Calrissian | Existing Git commit retained in its isolated environment. |
+| CI tooling | GitHub Actions retain major tags; PyYAML stays on **6.0.x**; downloaded scan/publish binaries retain exact releases. |
+
+Fedora 44 [packages Podman 5.x](https://packages.fedoraproject.org/pkgs/podman/podman/index.html),
+so the image builds 4.9.5 and its rootless helper from upstream source in a
+separate Fedora 44 stage. Runtime libraries and container/network helpers still
+receive Fedora updates. DNF excludes Podman packages to prevent replacing this
+compatibility exception. This avoids mixing old Fedora repositories into the
+image. The exception addresses the requested version rollback; verify the
+original cgroup problem in the deployment after rebuilding. Fixes available
+only in newer Podman branches are not included, and its vendored Go dependencies
+stay at the upstream 4.9.5 versions.
+
+The checked-in [DNF5 versionlock policy](dnf-versionlock.toml) is copied into
+both Fedora stages **before installation or upgrade** and stays in the final
+image for subsequent DNF transactions. It constrains Git 2, Git LFS 3,
+Nextcloud 35, Skopeo 1, Conmon 2, crun 1, Netavark/Aardvark 1,
+slirp4netns/fuse-overlayfs 1, Graphviz 14, PROJ 9, GPGME 2, and libseccomp 2.
+Related split library/development packages are constrained where applicable.
+RPM epochs are included explicitly because they take precedence over version
+numbers. See the [DNF5 versionlock documentation](https://dnf5.readthedocs.io/en/latest/commands/versionlock.8.html).
+
+These limits allow fixes within the named major series, including RPM release
+updates such as `-1.fc44` to `-2.fc44`. If Fedora removes compatible packages or
+new dependencies conflict with these limits, the build should fail rather than
+silently cross the ceiling. Review the policy explicitly in that case. Base OS
+libraries and build compilers not listed in the policy still follow Fedora 44.
+
+These are bounded updates, not a reproducible lockfile. Transitive Python
+dependencies still follow upstream requirements, including in the isolated
+Hatch and Calrissian environments and the inherited Jupyter environment.
+The workshop fixture remains an upstream snapshot; latest extension releases
+remain intentional compatibility probes, installed only in disposable tests.
+
+To pick up allowed updates, rebuild with fresh base images and uncached install
+layers (a cached build does not check for newer packages):
+
+```bash
+docker buildx build --pull --no-cache --platform linux/amd64 \
+  --load -t eoepca/pde-code-server:refresh .
+task test IMAGE=eoepca/pde-code-server:refresh PLATFORM=linux/amd64
+task test:podman IMAGE=eoepca/pde-code-server:refresh PLATFORM=linux/amd64
+task test:mastering IMAGE=eoepca/pde-code-server:refresh PLATFORM=linux/amd64
+```
+
+Repeat for ARM64 before publishing. Review exact pins and DNF major-version ceilings
+monthly and when a relevant security advisory appears; a fix outside the allowed
+series requires an explicit version change and both architecture test jobs.
+CI generates an SBOM and scans the image, but the current Trivy scan is
+report-only and does not block publication for CVEs.
 
 ### Base System
 
 - OS: Fedora 44
 - Python: 3.12 (Jupyter/Conda toolchain)
 - NVM: v0.40.3, installed at `/opt/nvm`
-- Node.js: v22.15.0, installed via NVM and available on `PATH`
+- Node.js: latest 22.x at build time, installed via NVM and available on `PATH`
 - npm: bundled with Node.js 22
 - Java: Eclipse Temurin OpenJDK 17 JDK, at `/opt/java/openjdk`
 

@@ -1,7 +1,24 @@
 # Retain the complete Python/Jupyter/Conda toolchain while moving the OS to Fedora.
 FROM quay.io/jupyter/base-notebook:python-3.12 AS python-runtime
 FROM eclipse-temurin:17-jdk AS java-runtime
+# Fedora 44 has Podman 5.x. Build the temporary 4.9 exception against the same
+# distribution instead of mixing obsolete Fedora RPM repositories into runtime.
+FROM fedora:44 AS podman-build
+COPY dnf-versionlock.toml /etc/dnf/versionlock.toml
+ARG PODMAN_VERSION=4.9.5
+RUN case "${PODMAN_VERSION}" in 4.9.*) ;; *) echo "Podman must remain on 4.9.x" >&2; exit 1 ;; esac
+RUN dnf install -y golang gcc make git pkgconf-pkg-config glib2-devel \
+    gpgme-devel libassuan-devel libseccomp-devel systemd-devel && dnf clean all
+RUN git clone --depth 1 --branch "v${PODMAN_VERSION}" \
+      https://github.com/containers/podman.git /src/podman && \
+    cd /src/podman && \
+    make PREFIX=/usr BUILDTAGS="seccomp systemd exclude_graphdriver_btrfs exclude_graphdriver_devicemapper" \
+      bin/podman bin/rootlessport bin/quadlet && \
+    make PREFIX=/usr DESTDIR=/out install.bin && \
+    test "$(/out/usr/bin/podman --version)" = "podman version ${PODMAN_VERSION}"
+
 FROM fedora:44
+COPY dnf-versionlock.toml /etc/dnf/versionlock.toml
 
 COPY --from=java-runtime /opt/java/openjdk /opt/java/openjdk
 COPY --from=python-runtime /opt/conda /opt/conda
@@ -32,12 +49,19 @@ USER root
 # -------------------------------------------------------------------
 # Base system packages (runtime only)
 # -------------------------------------------------------------------
+# Prevent later DNF transactions from introducing Fedora's Podman 5.x.
+RUN printf '\nexcludepkgs=podman,podman-remote,podman-docker\n' >> /etc/dnf/dnf.conf
 RUN dnf upgrade -y && dnf install -y \
     ca-certificates curl git git-lfs nano net-tools sudo wget graphviz file tree \
-    podman skopeo fontconfig freetype nextcloud-client \
+    skopeo fontconfig freetype nextcloud-client \
+    containers-common conmon crun netavark aardvark-dns slirp4netns fuse-overlayfs \
+    iptables gpgme libseccomp systemd-libs \
     htop openssh-clients procps-ng zsh dumb-init glibc-langpack-en \
     findutils which tar gzip bzip2 unzip hostname shadow-utils \
     && dnf clean all && rm -rf /var/cache/dnf
+
+COPY --from=podman-build /out/ /
+RUN podman --version | grep -E '^podman version 4\.9\.[0-9]+$'
 
 RUN groupadd -g 100 users 2>/dev/null || getent group 100
 RUN useradd -m -u 1000 -g 100 -s /bin/bash jovyan && \
@@ -52,7 +76,7 @@ RUN useradd -m -u 1000 -g 100 -s /bin/bash jovyan && \
 # NVM and Node.js
 # -------------------------------------------------------------------
 ARG NVM_VERSION=v0.40.3
-ARG NODE_VERSION=22.15.0
+ARG NODE_VERSION=22
 
 ENV NVM_DIR=/opt/nvm
 
@@ -60,10 +84,10 @@ RUN mkdir -p "${NVM_DIR}" && \
     curl -fsSL \
       "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" \
       | bash && \
-    bash -c '. "${NVM_DIR}/nvm.sh" && nvm install "${NODE_VERSION}" && nvm alias default "${NODE_VERSION}"' && \
+    bash -c '. "${NVM_DIR}/nvm.sh" && nvm install "${NODE_VERSION}" && nvm alias default "${NODE_VERSION}" && ln -s "$(dirname "$(dirname "$(nvm which default)")")" /opt/node' && \
     chown -R jovyan:users "${NVM_DIR}"
 
-ENV PATH="${NVM_DIR}/versions/node/v${NODE_VERSION}/bin:${PATH}"
+ENV PATH="/opt/node/bin:${PATH}"
 
 RUN printf '\nexport NVM_DIR="/opt/nvm"\n[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\n' \
     >> /etc/bashrc
@@ -106,18 +130,9 @@ RUN curl -fsSL \
 # Python tooling
 # -------------------------------------------------------------------
 ARG CALRISSIAN_COMMIT=a95d87dd213d51b11faea7c6def4ced46d466a4a
-COPY requirements-cwl-uml.txt /tmp/requirements-cwl-uml.txt
+COPY requirements.txt requirements-cwl-uml.txt /tmp/
 
-RUN pip install --no-cache-dir \
-    -r /tmp/requirements-cwl-uml.txt \
-    awscli \
-    awscli-plugin-endpoint \
-    "jhsingle-native-proxy>=0.0.9" \
-    bash_kernel \
-    tomlq \
-    uv \
-    cwltool \
-    cwltest && \
+RUN pip install --no-cache-dir -r /tmp/requirements.txt && \
     python -m bash_kernel.install
 
 # Bash kernels detect a finished cell by their prompt. When ~/.bashrc activates a virtual

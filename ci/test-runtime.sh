@@ -4,6 +4,8 @@ set -Eeuo pipefail
 trap 'printf "ERROR %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-$0}" "$LINENO" "$BASH_COMMAND" "$?" >&2' ERR
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 test "$(id -u)" = 1000
+# Fail publication if the temporary compatibility exception is lost.
+[[ "$(podman --version)" =~ ^podman\ version\ 4\.9\.[0-9]+$ ]]
 test -w /opt/conda/bin
 python -c 'import sys; assert sys.version_info[:2] == (3, 12)'
 test -w "$HATCH_CONFIG"
