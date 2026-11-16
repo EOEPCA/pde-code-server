@@ -113,7 +113,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$ARCH" in amd64) TRIVY_ARCH=64bit ;; arm64) TRIVY_ARCH=ARM64 ;; esac
-          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.74.0/trivy_0.74.0_Linux-${TRIVY_ARCH}.tar.gz" | tar -xz trivy
+          curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-${TRIVY_ARCH}.tar.gz" | tar -xz trivy
           sudo install trivy /usr/local/bin/trivy
       - name: Trivy scan (relaxed for now)
         env:
