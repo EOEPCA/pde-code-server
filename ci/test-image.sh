@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# Run against a loaded image; uses native execution or registered binfmt/QEMU.
+set -Eeuo pipefail
+trap 'printf "ERROR %s:%s: %s (exit %s)\n" "${BASH_SOURCE[0]:-$0}" "$LINENO" "$BASH_COMMAND" "$?" >&2' ERR
+image="${1:?image required}"
+platform="${2:?platform required}"
+vsix_dir="${3:?VSIX directory required}"
+repo_dir="$(cd "$(dirname "$0")/.." && pwd)"
+arch="${platform#linux/}"
+case "$platform" in linux/amd64|linux/arm64) ;; *) echo "Unsupported platform: $platform" >&2; exit 1 ;; esac
+actual="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$image")"
+[[ "$actual" == "$platform" ]] || { echo "Expected $platform, got $actual" >&2; exit 1; }
+# Exercise cold-start runtime availability before any network-enabled tool check.
+docker run --rm --network none --platform "$platform" --entrypoint bash \
+  -v "$repo_dir/ci:/opt/image-ci:ro" "$image" /opt/image-ci/test-runtime.sh
+docker run --rm --platform "$platform" --entrypoint bash "$image" -exc '
+  test "$(id -u)" = 1000
+  test "$UID" = 1000
+  test "$(id -un)" = jovyan
+  test "$(id -g)" = 100
+  . /etc/os-release
+  test "$ID" = fedora
+  test "$VERSION_ID" = 44
+  code-server --version
+  node --version
+  kubectl version --client=true
+  task --version
+  skaffold version
+  /usr/local/bin/oras version
+  yq --version
+  jq --version
+  hatch --version
+  trivy --version
+  java -version
+  java -XshowSettings:properties -version 2>&1 | grep -Eq "java.specification.version = 17$"
+  dot -V
+  gdalinfo --version
+  calrissian --version
+  cwltool --version
+  cwltest --help >/dev/null
+  podman --version
+  skopeo --version
+  uv --version
+  QT_QPA_PLATFORM=offscreen nextcloudcmd --version
+  QT_QPA_PLATFORM=offscreen nextcloudcmd --help > /tmp/nextcloud-help
+  for option in --user --password --exclude --path; do
+    grep -Fq -- "$option" /tmp/nextcloud-help
+  done
+  python3 -m pip check
+  /opt/calrissian-venv/bin/python -m pip check
+  python3 -c "import cwl_loader, cwl2puml"
+' bash "$arch"
+# Check the ENV value directly: Bash replaces UID with the current numeric UID.
+docker run --rm -i --platform "$platform" --entrypoint python3 "$image" - "$arch" <<'PYTHON'
+import os
+from pathlib import Path
+import shutil
+import struct
+import sys
+
+assert os.environ["UID"] == "1000"
+assert os.getuid() == 1000
+machine = {"amd64": 62, "arm64": 183}[sys.argv[1]]
+executables = ["/opt/code-server/lib/node", shutil.which("node"), shutil.which("trivy"),
+               "/opt/hatch-venv/bin/python", "/opt/calrissian-venv/bin/python"]
+executables += [f"/usr/local/bin/{name}" for name in
+                ("kubectl", "task", "skaffold", "oras", "yq", "jq")]
+for executable in executables:
+    with Path(executable).open("rb") as stream:
+        header = stream.read(20)
+    assert header[:4] == b"\x7fELF" and header[5] == 1, executable
+    assert struct.unpack("<H", header[18:20])[0] == machine, executable
+    print(f"Verified {sys.argv[1]} ELF: {executable}")
+PYTHON
+docker run --rm --platform "$platform" --entrypoint python3 \
+  -v "$repo_dir/ci:/opt/extension-ci:ro" -v "$vsix_dir:/opt/extension-vsix:ro" \
+  "$image" /opt/extension-ci/test-extensions.py test /opt/extension-vsix
+
+bash "$repo_dir/ci/test-startup.sh" "$image" "$platform"

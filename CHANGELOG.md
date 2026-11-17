@@ -4,6 +4,74 @@ Notable project changes are recorded here for users and contributors.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+
+## Unreleased
+
+- Remove GDAL's temporary build toolchain and unused development dependencies
+  in the build layer, retaining PROJ/data and linked runtime libraries. Add a
+  compressed-raster and reprojection regression check.
+
+- Give rootless Podman's UID/GID mapping helpers the setuid permissions needed
+  to unpack images containing additional user/group IDs, including Python slim.
+- Test actual nested rootless Podman builds and non-root execution on both CI
+  architectures, using a disposable workspace volume.
+
+## [1.4.0] - 2026-11-02
+
+### Added
+- AMD64 and ARM64 binary downloads and native CI build/test jobs, with a combined
+  platform manifest and architecture-specific SBOM attachments.
+- Local Buildx tasks for either platform and a multi-platform OCI archive, plus
+  checks for tool execution, user identity, extensions, and entrypoint startup.
+- Pull-request CI validation on both architectures, using the same downloaded
+  extension releases for AMD64 and ARM64.
+- Pinned CWL and transpiler tooling for EOAP extension runtime requirements.
+- CI installation checks for the latest released EOAP Validator, CWL Metadata
+  Editor, and CWL UML Viewer VSIXs, with Python dependency checks, validator
+  environment setup, and rendering checks for all available UML diagram types.
+  Failures block image publication; tested release metadata is saved as an artifact.
+- A Taskfile for local AMD64 image builds with image tag and GDAL version overrides.
+- Standalone local operation through `JHSINGLE_NATIVE_PROXY_AUTHTYPE=none`,
+  with OAuth retained as the default.
+
+### Changed
+
+- Install Node.js 22.15.0 through NVM 0.40.3 instead of distro Node.js packages.
+- Require the OpenJDK 17 headless JDK, replacing the optional Java runtime and
+  removing the `INSTALL_JRE` build argument.
+- Install Calrissian 0.18.1 and its pinned `cwl-utils` 0.40 dependency in an
+  isolated virtual environment to avoid conflicts with the image's CWL tooling.
+- Document local image builds, standalone usage, and extension compatibility checks.
+- Replace Kaniko builds with Docker Buildx and publish the tested images only
+  after both native architecture build/test jobs pass.
+- Align the `UID` environment variable with the actual `jovyan` UID of 1001.
+- Use Trivy 0.74.0 for CI scans, matching the pinned image scanner; both platform
+  assets are available, while the previous 0.50.2 binary asset URLs returned 404.
+### Fixed
+- Migrate the runtime OS to Fedora 44 and code-server to 4.144.0, retaining
+  the Python 3.12 Conda/Jupyter environment and PDE tools, identity and paths.
+- Probe code-server `/healthz` with a 120-second readiness window so cold
+  editor startup does not stall the native proxy.
+- Retain Java 17 through Temurin and use Fedora's Nextcloud client packages.
+- Add an integration gate on both architectures for the mastering-app-package
+  init script, extensions, Python environment, S3 setup and direct editor startup.
+- Trivy Transition to 0.76.1
+- Include the C++ compiler and XZ utilities required for the GDAL source build.
+- Validate proxy authentication modes and quote entrypoint arguments.
+- Install Calrissian from commit `a95d87dd213d51b11faea7c6def4ced46d466a4a`
+  with compatible isolated dependencies and bundled Dask resources.
+- Preinstall Hatch 1.16.5 and its runtime dependencies in an isolated environment,
+  avoiding a first-use download and fixing interpreter discovery with virtualenv
+  21; add offline Hatch environment creation/activation and Calrissian smoke checks.
+- Set `VIRTUAL_ENV_DISABLE_PROMPT=1` for the Bash kernel only: when `~/.bashrc` activates a
+  virtual environment, activating another one in a notebook cell restored the pre-kernel
+  prompt and the cell never finished. Terminals keep the `(venv)` prompt.
+- Ensure the default workspace is writable by jovyan for tool configuration, and
+  remove the root-owned build cache that blocked `uv` and pip caches there.
+- Store Hatch configuration, data, and caches in writable directories under
+  `/home/jovyan`, including when a volume is mounted at `/workspace`.
+- Make Mike Farah's pinned `yq` the default command while retaining the Python
+  `yq` dependency and `tomlq`/`xq` launchers; smoke-test YAML and TOML processing.
 ## [1.3.0] - 2026-10-06
 
 ### Added
@@ -65,6 +133,8 @@ at the earliest Git tag.
   tooling versions, and install code-server 4.108.1 from its release tarball.
 - Refactor the CI container build and publishing workflow.
 
-[Unreleased]: https://github.com/EOEPCA/pde-code-server/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/EOEPCA/pde-code-server/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/EOEPCA/pde-code-server/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/EOEPCA/pde-code-server/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/EOEPCA/pde-code-server/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/EOEPCA/pde-code-server/releases/tag/v1.1.0

@@ -1,0 +1,12 @@
+transpiler-mate-runtime==1.3.0
+cwl-loader==0.27.0
+transpiler-mate-api==1.0.1
+cwl2click==0.10.1
+cwl2markdown==0.2.1
+cwl2puml==0.49.1
+cwl2inputs==0.1.1
+cwl2ogc==0.22.2
+cwl2oci==0.1.1
+cwl2sbom==0.1.1
+cwl-baseline-plugin==0.1.1
+cwl2codemeta==0.1.1
